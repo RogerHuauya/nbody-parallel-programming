@@ -1,0 +1,25 @@
+{
+  "n_particles": 1000,
+  "n_processes": 4,
+  "timestep": 0.001,
+  "total_time": 1.0,
+  "softening": 0.001,
+  "output_frequency": 10,
+  "integration_order": 4,
+  "random_seed": 12345,
+  "plummer_scale": 1.0,
+  "virial_ratio": 0.5,
+  "description": "Configuración por defecto para simulaciones de prueba",
+  "notes": [
+    "n_particles: Número de partículas en la simulación",
+    "n_processes: Número de procesos MPI para paralelización",
+    "timestep: Paso temporal para integración",
+    "total_time: Tiempo total de simulación",
+    "softening: Parámetro de suavizado para evitar singularidades",
+    "output_frequency: Frecuencia de escritura de snapshots",
+    "integration_order: Orden del integrador Hermite (4, 6, 8)",
+    "random_seed: Semilla para generación aleatoria",
+    "plummer_scale: Escala característica del modelo de Plummer",
+    "virial_ratio: Razón entre energía cinética y potencial"
+  ]
+} 
