@@ -1,0 +1,15 @@
+﻿# Ejecutables
+*.exe
+cpu-4th
+gpu-4th
+
+# Archivos objeto
+*.o
+*.obj
+
+# Archivos de datos y logs
+*.dat
+*.log
+
+# Archivos de video
+*.mp4
