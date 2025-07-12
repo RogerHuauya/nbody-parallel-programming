@@ -20,6 +20,7 @@ class NBodyVisualizer:
         self.current_frame = 0
         self.is_playing = False
         self.frame_rate = 50  # ms
+        self.animation_timer = None
         
         # Configuración de visualización
         self.show_trails = False
@@ -28,6 +29,10 @@ class NBodyVisualizer:
         
         # Cargar datos
         self.load_snapshots()
+        
+        if not self.snapshots:
+            print("No se encontraron datos para visualizar")
+            return
         
         # Configurar interfaz
         self.setup_plot()
@@ -68,19 +73,20 @@ class NBodyVisualizer:
             
             # Parsear partículas
             particles = []
-            for i in range(3, 3 + n_particles):
+            for i in range(3, min(3 + n_particles, len(lines))):
                 parts = lines[i].strip().split()
-                particle_id = int(parts[0])
-                mass = float(parts[1])
-                pos = np.array([float(parts[2]), float(parts[3]), float(parts[4])])
-                vel = np.array([float(parts[5]), float(parts[6]), float(parts[7])])
-                
-                particles.append({
-                    'id': particle_id,
-                    'mass': mass,
-                    'pos': pos,
-                    'vel': vel
-                })
+                if len(parts) >= 8:
+                    particle_id = int(parts[0])
+                    mass = float(parts[1])
+                    pos = np.array([float(parts[2]), float(parts[3]), float(parts[4])])
+                    vel = np.array([float(parts[5]), float(parts[6]), float(parts[7])])
+                    
+                    particles.append({
+                        'id': particle_id,
+                        'mass': mass,
+                        'pos': pos,
+                        'vel': vel
+                    })
             
             return {
                 'step': step,
@@ -94,14 +100,11 @@ class NBodyVisualizer:
     
     def setup_plot(self):
         """Configura la figura y los ejes 3D"""
+        plt.ioff()  # Desactivar modo interactivo para evitar problemas
         self.fig = plt.figure(figsize=(12, 10))
         
         # Eje principal 3D
         self.ax = self.fig.add_subplot(111, projection='3d')
-        
-        # Configurar límites iniciales
-        if self.snapshots:
-            self.update_plot_limits()
         
         # Configurar apariencia
         self.ax.set_xlabel('X')
@@ -116,6 +119,41 @@ class NBodyVisualizer:
         
         # Ajustar layout para controles
         plt.subplots_adjust(bottom=0.2)
+        
+        # Calcular límites globales
+        self.calculate_plot_limits()
+        
+    def calculate_plot_limits(self):
+        """Calcula los límites del gráfico basado en todos los datos"""
+        if not self.snapshots:
+            return
+            
+        # Encontrar límites globales
+        all_positions = []
+        for snapshot in self.snapshots:
+            for particle in snapshot['particles']:
+                all_positions.append(particle['pos'])
+        
+        all_positions = np.array(all_positions)
+        
+        # Añadir margen
+        margin = 0.1
+        self.xlim = self._calculate_axis_limits(all_positions[:, 0], margin)
+        self.ylim = self._calculate_axis_limits(all_positions[:, 1], margin)
+        self.zlim = self._calculate_axis_limits(all_positions[:, 2], margin)
+        
+        # Aplicar límites
+        self.ax.set_xlim(self.xlim)
+        self.ax.set_ylim(self.ylim)
+        self.ax.set_zlim(self.zlim)
+    
+    def _calculate_axis_limits(self, data, margin):
+        """Calcula límites para un eje con margen"""
+        min_val = np.min(data)
+        max_val = np.max(data)
+        range_val = max_val - min_val
+        margin_val = range_val * margin
+        return (min_val - margin_val, max_val + margin_val)
         
     def setup_controls(self):
         """Configura los controles interactivos"""
@@ -148,36 +186,6 @@ class NBodyVisualizer:
         self.speed_slider = Slider(ax_speed, 'Speed', 10, 200, valinit=50, valfmt='%d ms')
         self.speed_slider.on_changed(self.update_speed)
         
-    def update_plot_limits(self):
-        """Actualiza los límites del gráfico basado en los datos"""
-        if not self.snapshots:
-            return
-            
-        # Calcular límites globales
-        all_positions = []
-        for snapshot in self.snapshots:
-            for particle in snapshot['particles']:
-                all_positions.append(particle['pos'])
-        
-        all_positions = np.array(all_positions)
-        
-        # Añadir margen
-        margin = 0.1
-        ranges = np.ptp(all_positions, axis=0)
-        centers = np.mean(all_positions, axis=0)
-        
-        for i, (center, range_val) in enumerate(zip(centers, ranges)):
-            margin_val = range_val * margin
-            if i == 0:  # X
-                self.ax.set_xlim(center - range_val/2 - margin_val, 
-                               center + range_val/2 + margin_val)
-            elif i == 1:  # Y
-                self.ax.set_ylim(center - range_val/2 - margin_val, 
-                               center + range_val/2 + margin_val)
-            else:  # Z
-                self.ax.set_zlim(center - range_val/2 - margin_val, 
-                               center + range_val/2 + margin_val)
-    
     def update_frame(self, val):
         """Actualiza el frame actual"""
         self.current_frame = int(self.slider.val)
@@ -215,17 +223,32 @@ class NBodyVisualizer:
         # Limpiar gráfico anterior
         if self.scatter:
             self.scatter.remove()
+            self.scatter = None
         
         for line in self.trail_lines:
-            line.remove()
+            try:
+                line.remove()
+            except:
+                pass
         self.trail_lines = []
         
-        # Dibujar partículas
-        colors = masses if len(set(masses)) > 1 else 'blue'
-        sizes = np.clip(masses * 1000, 10, 100)  # Escalar tamaño
+        # Determinar colores
+        unique_masses = np.unique(masses)
+        if len(unique_masses) > 1:
+            # Colorear por masa
+            colors = masses
+            cmap = 'viridis'
+        else:
+            # Color uniforme
+            colors = 'blue'
+            cmap = None
         
+        # Escalar tamaños
+        sizes = np.clip(masses * 1000, 10, 100)
+        
+        # Dibujar partículas
         self.scatter = self.ax.scatter(positions[:, 0], positions[:, 1], positions[:, 2],
-                                     c=colors, s=sizes, alpha=0.8, cmap='viridis')
+                                     c=colors, s=sizes, alpha=0.8, cmap=cmap)
         
         # Dibujar trails
         if self.show_trails:
@@ -240,19 +263,36 @@ class NBodyVisualizer:
         self.time_text.set_text(f'Time: {snapshot["time"]:.3f}\nStep: {snapshot["step"]}\n'
                               f'Particles: {snapshot["n_particles"]}')
         
-        # Actualizar slider
-        self.slider.set_val(self.current_frame)
+        # Restaurar límites (importante para evitar problemas)
+        self.ax.set_xlim(self.xlim)
+        self.ax.set_ylim(self.ylim)
+        self.ax.set_zlim(self.zlim)
         
-        self.fig.canvas.draw()
+        # Actualizar canvas
+        self.fig.canvas.draw_idle()
     
     def toggle_play(self, event):
         """Inicia/pausa la animación"""
         self.is_playing = not self.is_playing
         if self.is_playing:
-            self.animate()
+            self.start_animation()
+        else:
+            self.stop_animation()
     
-    def animate(self):
-        """Función de animación"""
+    def start_animation(self):
+        """Inicia la animación usando matplotlib timer"""
+        if self.animation_timer is None:
+            self.animation_timer = self.fig.canvas.new_timer(interval=self.frame_rate)
+            self.animation_timer.add_callback(self.animate_step)
+        self.animation_timer.start()
+    
+    def stop_animation(self):
+        """Detiene la animación"""
+        if self.animation_timer is not None:
+            self.animation_timer.stop()
+    
+    def animate_step(self):
+        """Un paso de la animación"""
         if not self.is_playing:
             return
             
@@ -261,18 +301,16 @@ class NBodyVisualizer:
         else:
             self.current_frame = 0  # Loop
             
+        self.slider.set_val(self.current_frame)
         self.plot_frame()
-        
-        # Programar siguiente frame
-        self.fig.canvas.draw_idle()
-        self.fig.canvas.get_tk_widget().after(int(self.frame_rate), self.animate)
     
     def reset_view(self, event):
         """Reinicia la vista"""
         self.current_frame = 0
         self.is_playing = False
+        self.stop_animation()
+        self.slider.set_val(0)
         self.plot_frame()
-        self.update_plot_limits()
     
     def save_frame(self, event):
         """Guarda el frame actual"""
@@ -289,10 +327,9 @@ class NBodyVisualizer:
             self.show_trails = not self.show_trails
             if not self.show_trails:
                 # Limpiar trails
-                for line in self.trail_lines:
-                    line.remove()
-                self.trail_lines = []
-                self.fig.canvas.draw()
+                for particle_id in self.particle_trails:
+                    self.particle_trails[particle_id] = []
+            self.plot_frame()
         
         elif label == 'Color by Mass':
             self.plot_frame()
@@ -300,6 +337,8 @@ class NBodyVisualizer:
     def update_speed(self, val):
         """Actualiza la velocidad de animación"""
         self.frame_rate = int(self.speed_slider.val)
+        if self.animation_timer is not None:
+            self.animation_timer.interval = self.frame_rate
     
     def show(self):
         """Muestra el visualizador"""
@@ -309,6 +348,15 @@ class NBodyVisualizer:
             
         # Plotear primer frame
         self.plot_frame()
+        
+        print("\nControles:")
+        print("- Play/Pause: Inicia o pausa la animación")
+        print("- Reset: Vuelve al primer frame")
+        print("- Save Frame: Guarda el frame actual como imagen")
+        print("- Slider: Navega entre frames")
+        print("- Show Trails: Muestra las trayectorias de las partículas")
+        print("- Speed: Ajusta la velocidad de animación")
+        print("\nPuedes rotar la vista con el mouse")
         
         # Mostrar la figura
         plt.show()
