@@ -1,1 +1,0 @@
-gcc -O3 -Wall bh-evol.c -o bh-evol.exe -lm

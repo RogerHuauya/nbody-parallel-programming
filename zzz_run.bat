@@ -1,1 +1,0 @@
-nohup mpirun_rsh -hostfile machines.ari -np 24 ./phi-GRAPE-C.exe < /dev/null 2> err.log 1> res_24-2 &

@@ -1,1 +1,0 @@
-mpirun -hostfile machines.kolob -np 39 ./phi-GPU.exe

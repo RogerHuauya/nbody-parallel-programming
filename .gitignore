@@ -1,4 +1,5 @@
 # Archivos compilados del proyecto N-cuerpos
+bin/
 src/gen-plum
 src/cpu-4th
 src/cpu-6th

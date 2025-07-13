@@ -12,6 +12,17 @@ echo "=== SIMULACIÓN N-BODY EN TIEMPO REAL ==="
 echo "Procesadores: $PROCESSORS"
 echo "Directorio: $REALTIME_DIR"
 
+# Verificar que los ejecutables existan
+if [ ! -f "bin/gen-plum" ]; then
+    echo "Error: bin/gen-plum no encontrado. Ejecutando 'make gen-plum'..."
+    make gen-plum
+fi
+
+if [ ! -f "bin/cpu-4th" ]; then
+    echo "Error: bin/cpu-4th no encontrado. Ejecutando 'make cpu-4th'..."
+    make cpu-4th
+fi
+
 # Limpiar y crear estructura de directorios
 rm -rf $REALTIME_DIR
 mkdir -p $REALTIME_DIR
@@ -28,7 +39,7 @@ run_simulation() {
     mkdir -p "$DIR/snapshots"
     
     # Generar datos iniciales
-    ./gen-plum $N 1
+    ./bin/gen-plum $N 1
     mv data.inp "$DIR/"
     
     # Crear archivo de configuración para snapshots muy frecuentes
@@ -69,7 +80,7 @@ EOF
     
     # Ejecutar la simulación
     echo "[N=$((N*1024))] Ejecutando simulación..."
-    mpirun -np $PROC ../../cpu-4th > output.log 2>&1
+    mpirun -np $PROC ../../bin/cpu-4th > output.log 2>&1
     
     # Marcar como completada
     touch simulation_complete.flag

@@ -1,1 +1,0 @@
-gcc -O3 -Wall bh-param.c -o bh-param.exe -lm

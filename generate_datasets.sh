@@ -6,6 +6,17 @@
 
 echo "Generando datasets para diferentes tamaños N..."
 
+# Verificar que los ejecutables existan
+if [ ! -f "bin/gen-plum" ]; then
+    echo "Error: bin/gen-plum no encontrado. Ejecutando 'make gen-plum'..."
+    make gen-plum
+fi
+
+if [ ! -f "bin/cpu-4th" ]; then
+    echo "Error: bin/cpu-4th no encontrado. Ejecutando 'make cpu-4th'..."
+    make cpu-4th
+fi
+
 # Crear directorio para resultados
 mkdir -p datasets
 mkdir -p snapshots
@@ -17,8 +28,8 @@ echo "N_particles,time_seconds,gflops" > performance_data/strong_scaling.csv
 echo "processors,time_per_particle,efficiency" > performance_data/weak_scaling.csv
 
 # Diferentes tamaños N (potencias de 2)
-sizes=(1 2 4 8)  # Equivale a 1024, 2048, 4096, 8192 partículas
-processors=(1 2 4)  # Diferentes números de procesadores para scaling
+sizes=(1 2 4 8 16 32 64 128 256 512 1024 2048 4096 8192)  # Equivale a 1024, 2048, 4096, 8192 partículas
+processors=(1 2 4 8)  # Diferentes números de procesadores para scaling
 
 echo "=== GENERANDO DATOS PARA STRONG SCALING ==="
 # Strong scaling: tamaño fijo, variar procesadores
@@ -29,7 +40,7 @@ for proc in "${processors[@]}"; do
     echo "Strong scaling: N=$((FIXED_N*1024)), procesadores=$proc"
     
     # Generar datos iniciales
-    ./gen-plum $FIXED_N 1
+    ./bin/gen-plum $FIXED_N 1
     
     # Crear directorio
     mkdir -p "datasets/strong_N${FIXED_N}_P${proc}"
@@ -46,7 +57,7 @@ EOF
     echo "Ejecutando con $proc procesadores..."
     start_time=$(date +%s.%N)
     
-    mpirun -np $proc ../../cpu-4th > output.log 2>&1
+    mpirun -np $proc ../../bin/cpu-4th > output.log 2>&1
     
     end_time=$(date +%s.%N)
     execution_time=$(echo "$end_time - $start_time" | bc)
@@ -77,7 +88,7 @@ for proc in "${processors[@]}"; do
     echo "Weak scaling: N=$((N_scaled*1024)), procesadores=$proc ($(($N_scaled*1024/proc)) partículas/proc)"
     
     # Generar datos iniciales
-    ./gen-plum $N_scaled 1
+    ./bin/gen-plum $N_scaled 1
     
     # Crear directorio
     mkdir -p "datasets/weak_N${N_scaled}_P${proc}"
@@ -93,7 +104,7 @@ EOF
     # Ejecutar con medición de tiempo
     start_time=$(date +%s.%N)
     
-    mpirun -np $proc ../../cpu-4th > output.log 2>&1
+    mpirun -np $proc ../../bin/cpu-4th > output.log 2>&1
     
     end_time=$(date +%s.%N)
     execution_time=$(echo "$end_time - $start_time" | bc)
@@ -119,7 +130,7 @@ for N in "${sizes[@]}"; do
     echo "Generando dataset para N = $((N*1024)) partículas..."
     
     # Generar datos iniciales
-    ./gen-plum $N 1
+    ./bin/gen-plum $N 1
     
     # Crear directorio para este tamaño
     mkdir -p "datasets/N_${N}KB"
@@ -139,7 +150,7 @@ EOF
     
     # Ejecutar y capturar snapshots
     start_time=$(date +%s.%N)
-    mpirun -np 1 ../../cpu-4th > output.log 2>&1
+    mpirun -np 1 ../../bin/cpu-4th > output.log 2>&1
     end_time=$(date +%s.%N)
     execution_time=$(echo "$end_time - $start_time" | bc)
     

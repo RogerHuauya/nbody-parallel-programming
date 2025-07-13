@@ -1,1 +1,0 @@
-mpirun -machinefile machines.mao -np 4 ./phi-GPU.exe
