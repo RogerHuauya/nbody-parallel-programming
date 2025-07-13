@@ -4,7 +4,9 @@
 #include <cuda_runtime_api.h>
 #include <vector_types.h>
 #include <vector_functions.h>
-// #include <algorithm>
+#include <algorithm>
+// Commented out to avoid conflicts with std::max/min
+/*
 #ifdef __CUDA
 namespace std{
 	template<typename T>
@@ -17,6 +19,7 @@ namespace std{
 	}
 }
 #endif
+*/
 #include "vector3.h"
 #include "taylor.h"
 #include "float2.h"

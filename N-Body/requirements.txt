@@ -1,0 +1,28 @@
+# Requirements for N-Body visualization and scaling analysis
+# Python 3.8+
+
+# Core scientific computing
+numpy>=1.21.0
+pandas>=1.3.0
+matplotlib>=3.4.0
+scipy>=1.7.0
+
+# Parallel processing
+joblib>=1.1.0
+
+# For better matplotlib styles
+seaborn>=0.11.2
+
+# Optional but recommended for better performance
+numba>=0.54.0
+
+# For progress bars (optional)
+tqdm>=4.62.0
+
+# For system monitoring
+psutil>=5.8.0
+
+# System requirements (install separately):
+# - ffmpeg (for video generation): sudo apt install ffmpeg
+# - MPI implementation: sudo apt install mpich
+# - C++ compiler: sudo apt install build-essential 

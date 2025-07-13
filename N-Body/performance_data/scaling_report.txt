@@ -1,0 +1,32 @@
+
+================================================================================
+                    REPORTE DE ANÁLISIS DE ESCALABILIDAD
+                           N-BODY SIMULATION
+                              2025-07-12 23:15:26
+================================================================================
+
+Este reporte presenta los resultados del análisis de escalabilidad para la
+simulación N-Body utilizando paralelización MPI.
+
+CONFIGURACIÓN DEL EXPERIMENTO:
+- Algoritmo: N-Body (Hermite 4th order)
+- Paralelización: MPI
+- Procesadores evaluados: 1, 2, 4
+- Tamaño fijo (Strong Scaling): 4096 partículas
+- Partículas por procesador (Weak Scaling): 1024
+
+ARCHIVOS GENERADOS:
+1. strong_scaling_analysis.png/pdf - Análisis completo de strong scaling
+2. weak_scaling_analysis.png/pdf - Análisis completo de weak scaling
+3. combined_scaling_analysis.png/pdf - Comparación de ambos tipos
+4. baseline_performance.png/pdf - Rendimiento base para diferentes N
+
+CONCLUSIONES:
+- El análisis de strong scaling muestra el speedup obtenido al aumentar
+  el número de procesadores para un tamaño de problema fijo.
+- El análisis de weak scaling evalúa la capacidad del sistema para mantener
+  el rendimiento al aumentar proporcionalmente el problema y los recursos.
+- Los resultados demuestran la eficiencia de la paralelización del algoritmo
+  N-Body para los tamaños de problema evaluados.
+
+================================================================================

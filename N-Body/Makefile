@@ -1,9 +1,6 @@
-###CUDA_PATH=/usr/local/cuda
-###SDK_PATH=/usr/local/cudasdk
-
-CUDA_PATH=/usr/common/usg/cuda/3.2/
-SDK_PATH=/home/veles/NVIDIA_GPU_Computing_SDK/C
-NVCC=nvcc -arch=sm_20 -I. -Xcompiler "-Wall -O3"
+CUDA_PATH=/usr/local/cuda
+SDK_PATH=/usr/local/cuda/samples/common/inc
+NVCC=nvcc -arch=sm_86 -I. -Xcompiler "-Wall -O3"
 
 ###CUDA_PATH=/export/opt/cuda
 ###SDK_PATH=/export/opt/cuda/NVIDIA_CUDA_SDK
@@ -33,7 +30,7 @@ gpu-6th: phi-GPU.cpp hermite6-gpu.o
 	mpicxx $(CXXFLAGS) -DSIXTH -DGPU -I$(CUDA_PATH)/include -L$(CUDA_PATH)/lib64 -lcudart -o $@ $^
 
 gpu-4th: phi-GPU.cpp hermite4-gpu.o
-	mpicxx $(CXXFLAGS) -DFOURTH -DGPU -I$(CUDA_PATH)/include -L$(CUDA_PATH)/lib64 -lcudart -o $@ $^
+	mpicxx $(CXXFLAGS) -DFOURTH -DGPU -I$(CUDA_PATH)/include -L$(CUDA_PATH)/lib64 -L/usr/lib/x86_64-linux-gnu -lcudart -lcuda -o $@ $^
 
 
 gpu-8th.s: phi-GPU.cpp

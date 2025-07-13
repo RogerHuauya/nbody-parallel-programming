@@ -2,16 +2,119 @@
 
 # Script para generar datasets con diferentes tamaños N (potencias de 2)
 # y ejecutar simulaciones almacenando estados para animación
+# Captura datos de rendimiento para strong scaling y weak scaling
 
 echo "Generando datasets para diferentes tamaños N..."
 
 # Crear directorio para resultados
 mkdir -p datasets
 mkdir -p snapshots
+mkdir -p performance_data
+
+# Crear archivos CSV para los resultados
+echo "N_particles,processors,time_seconds,gflops,scaling_type" > performance_data/scaling_results.csv
+echo "N_particles,time_seconds,gflops" > performance_data/strong_scaling.csv
+echo "processors,time_per_particle,efficiency" > performance_data/weak_scaling.csv
 
 # Diferentes tamaños N (potencias de 2)
-sizes=(1 2 4 8 16)  # Equivale a 1024, 2048, 4096, 8192, 16384 partículas
+sizes=(1 2 4 8)  # Equivale a 1024, 2048, 4096, 8192 partículas
+processors=(1 2 4)  # Diferentes números de procesadores para scaling
 
+echo "=== GENERANDO DATOS PARA STRONG SCALING ==="
+# Strong scaling: tamaño fijo, variar procesadores
+FIXED_N=4  # 4096 partículas fijas
+echo "Usando N fijo = $((FIXED_N*1024)) partículas"
+
+for proc in "${processors[@]}"; do
+    echo "Strong scaling: N=$((FIXED_N*1024)), procesadores=$proc"
+    
+    # Generar datos iniciales
+    ./gen-plum $FIXED_N 1
+    
+    # Crear directorio
+    mkdir -p "datasets/strong_N${FIXED_N}_P${proc}"
+    cp data.inp "datasets/strong_N${FIXED_N}_P${proc}/"
+    
+    # Crear configuración
+    cat > "datasets/strong_N${FIXED_N}_P${proc}/phi-GPU4.cfg" << EOF
+0.01 0.5 0.1 0.1 0.02 0.02 data.inp
+EOF
+    
+    cd "datasets/strong_N${FIXED_N}_P${proc}"
+    
+    # Ejecutar con medición de tiempo
+    echo "Ejecutando con $proc procesadores..."
+    start_time=$(date +%s.%N)
+    
+    mpirun -np $proc ../../cpu-4th > output.log 2>&1
+    
+    end_time=$(date +%s.%N)
+    execution_time=$(echo "$end_time - $start_time" | bc)
+    
+    # Extraer GFlops de la salida
+    gflops=$(grep "Real Speed" output.log | awk '{print $4}' || echo "0")
+    
+    # Guardar en CSV
+    echo "$((FIXED_N*1024)),$proc,$execution_time,$gflops,strong" >> ../../performance_data/scaling_results.csv
+    echo "$((FIXED_N*1024)),$execution_time,$gflops" >> ../../performance_data/strong_scaling.csv
+    
+    echo "Tiempo: ${execution_time}s, GFlops: $gflops"
+    
+    cd ../..
+done
+
+echo "=== GENERANDO DATOS PARA WEAK SCALING ==="
+# Weak scaling: aumentar N proporcionalmente con procesadores
+
+base_particles_per_proc=1024  # 1024 partículas por procesador
+
+for proc in "${processors[@]}"; do
+    N_scaled=$((proc * base_particles_per_proc / 1024))  # Convertir a unidades de KB
+    if [ $N_scaled -eq 0 ]; then
+        N_scaled=1
+    fi
+    
+    echo "Weak scaling: N=$((N_scaled*1024)), procesadores=$proc ($(($N_scaled*1024/proc)) partículas/proc)"
+    
+    # Generar datos iniciales
+    ./gen-plum $N_scaled 1
+    
+    # Crear directorio
+    mkdir -p "datasets/weak_N${N_scaled}_P${proc}"
+    cp data.inp "datasets/weak_N${N_scaled}_P${proc}/"
+    
+    # Crear configuración
+    cat > "datasets/weak_N${N_scaled}_P${proc}/phi-GPU4.cfg" << EOF
+0.01 0.5 0.1 0.1 0.02 0.02 data.inp
+EOF
+    
+    cd "datasets/weak_N${N_scaled}_P${proc}"
+    
+    # Ejecutar con medición de tiempo
+    start_time=$(date +%s.%N)
+    
+    mpirun -np $proc ../../cpu-4th > output.log 2>&1
+    
+    end_time=$(date +%s.%N)
+    execution_time=$(echo "$end_time - $start_time" | bc)
+    
+    # Extraer GFlops
+    gflops=$(grep "Real Speed" output.log | awk '{print $4}' || echo "0")
+    
+    # Calcular tiempo por partícula
+    time_per_particle=$(echo "scale=6; $execution_time / $((N_scaled*1024))" | bc)
+    
+    # Guardar en CSV
+    echo "$((N_scaled*1024)),$proc,$execution_time,$gflops,weak" >> ../../performance_data/scaling_results.csv
+    echo "$proc,$time_per_particle,1.0" >> ../../performance_data/weak_scaling.csv
+    
+    echo "Tiempo: ${execution_time}s, Tiempo/partícula: ${time_per_particle}s"
+    
+    cd ../..
+done
+
+echo "=== GENERANDO DATOS PARA DIFERENTES TAMAÑOS N ==="
+# Datos originales para visualización
 for N in "${sizes[@]}"; do
     echo "Generando dataset para N = $((N*1024)) partículas..."
     
@@ -35,7 +138,16 @@ EOF
     cd "datasets/N_${N}KB"
     
     # Ejecutar y capturar snapshots
-    mpirun -np 1 ../../cpu-4th
+    start_time=$(date +%s.%N)
+    mpirun -np 1 ../../cpu-4th > output.log 2>&1
+    end_time=$(date +%s.%N)
+    execution_time=$(echo "$end_time - $start_time" | bc)
+    
+    # Extraer GFlops
+    gflops=$(grep "Real Speed" output.log | awk '{print $4}' || echo "0")
+    
+    # Guardar en CSV general
+    echo "$((N*1024)),1,$execution_time,$gflops,baseline" >> ../../performance_data/scaling_results.csv
     
     # Guardar archivos de salida
     if [ -f "data.con" ]; then
@@ -44,9 +156,19 @@ EOF
     
     cd ../..
     
-    echo "Completado para N = $((N*1024))"
+    echo "Completado para N = $((N*1024)) - Tiempo: ${execution_time}s"
 done
 
 echo "Generación de datasets completa!"
 echo "Datasets disponibles en: datasets/"
-echo "Snapshots disponibles en: snapshots/" 
+echo "Snapshots disponibles en: snapshots/"
+echo "Datos de rendimiento en: performance_data/"
+
+# Mostrar resumen de archivos generados
+echo ""
+echo "=== ARCHIVOS CSV GENERADOS ==="
+echo "1. scaling_results.csv - Todos los resultados"
+echo "2. strong_scaling.csv - Datos de strong scaling"
+echo "3. weak_scaling.csv - Datos de weak scaling"
+
+ls -la performance_data/ 
