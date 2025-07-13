@@ -34,7 +34,7 @@ cuda-check:
 
 # Generar condiciones iniciales
 gen-plum: gen-plum.c
-	gcc $(CFLAGS) -lm -o $@ $<
+	gcc $(CFLAGS) -o $@ $< -lm
 
 # Versiones CPU
 cpu-4th: phi-GPU.cpp hermite4.h
