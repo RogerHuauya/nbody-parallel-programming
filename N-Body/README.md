@@ -17,7 +17,11 @@ N-Body/
 ├── realtime_control.py        # Integrated control system for real-time execution
 ├── requirements.txt           # Python dependencies
 ├── README.md                  # This file
-└── REALTIME_README.md        # Documentation for real-time system
+├── REALTIME_README.md        # Documentation for real-time system
+├── ANALISIS_MATEMATICO.md    # Mathematical analysis of parallel algorithm
+├── ANALISIS_PROCESOS_GRAFICOS.md # Analysis of visualization processes
+├── RESUMEN_ANALISIS.md       # Executive summary of mathematical analysis
+└── performance_predictor.py   # Performance prediction tool
 ```
 
 ## Installation
@@ -215,6 +219,40 @@ The N-Body simulation uses:
 - O(N²) direct particle-particle interactions
 - MPI for distributed computing
 - Optional GPU acceleration with CUDA
+
+### Mathematical Analysis
+
+For detailed mathematical analysis of the parallel algorithm, including:
+- Sequential vs Parallel time complexity
+- Speedup and Efficiency formulas
+- Strong and Weak scaling models
+- Performance predictions
+
+See: [ANALISIS_MATEMATICO.md](ANALISIS_MATEMATICO.md)
+
+For analysis of visualization processes:
+- Pipeline breakdown and timing
+- Parallelization strategies
+- Complexity analysis
+- Performance optimization
+
+See: [ANALISIS_PROCESOS_GRAFICOS.md](ANALISIS_PROCESOS_GRAFICOS.md)
+
+### Performance Prediction
+
+The project includes a performance prediction tool based on the mathematical model:
+
+```bash
+python performance_predictor.py
+```
+
+This generates:
+- Strong scaling predictions
+- Efficiency analysis
+- Optimal processor recommendations
+- GFlops performance estimates
+
+For a quick summary, see: [RESUMEN_ANALISIS.md](RESUMEN_ANALISIS.md)
 
 ## Features Summary
 
