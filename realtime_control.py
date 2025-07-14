@@ -20,7 +20,7 @@ class RealtimeController:
         print("Verificando dependencias...")
         
         # Verificar ejecutables
-        required_files = ['cpu-4th', 'gen-plum', 'realtime_simulation.sh', 'realtime_visualizer.py']
+        required_files = ['bin/cpu-4th', 'bin/gen-plum', 'realtime_simulation.sh', 'realtime_visualizer.py']
         missing = []
         
         for file in required_files:
@@ -41,16 +41,17 @@ class RealtimeController:
         print("✓ Todas las dependencias verificadas")
         return True
     
-    def start_simulation(self, processors=2):
-        """Iniciar las simulaciones en paralelo"""
-        print(f"\nIniciando simulaciones con {processors} procesadores...")
+    def start_simulation(self, n_size=4):
+        """Iniciar las simulaciones con diferentes procesadores"""
+        print(f"\nIniciando simulaciones con N = {n_size*1024} partículas...")
+        print("Procesadores a probar: 1, 2, 4, 8")
         
         # Hacer ejecutable el script
         os.chmod('realtime_simulation.sh', 0o755)
         
         # Iniciar simulación en background
         self.simulation_process = subprocess.Popen(
-            ['./realtime_simulation.sh', str(processors)],
+            ['./realtime_simulation.sh', str(n_size)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
@@ -149,13 +150,38 @@ class RealtimeController:
         
         # Contar snapshots generados
         base_dir = 'realtime_simulations'
-        sizes = [1, 2, 4, 8]
+        processors = [1, 2, 4, 8]
         
-        for N in sizes:
-            snapshot_dir = f"{base_dir}/N_{N}KB/snapshots"
+        # Obtener N del archivo info
+        try:
+            with open(f"{base_dir}/info.json", 'r') as f:
+                info = json.load(f)
+                n_particles = info['n_particles']
+                n_size = n_particles // 1024
+        except:
+            n_size = 4
+            n_particles = 4096
+        
+        print(f"N = {n_particles} partículas (constante)")
+        print("\nResultados por procesador:")
+        
+        for P in processors:
+            snapshot_dir = f"{base_dir}/P{P}_N{n_size}KB/snapshots"
             if os.path.exists(snapshot_dir):
                 count = len([f for f in os.listdir(snapshot_dir) if f.startswith('snapshot_')])
-                print(f"N={N*1024}: {count} snapshots generados")
+                print(f"P={P}: {count} snapshots generados")
+                
+                # Buscar GFlops en output.log
+                output_file = f"{base_dir}/P{P}_N{n_size}KB/output.log"
+                if os.path.exists(output_file):
+                    with open(output_file, 'r') as f:
+                        content = f.read()
+                        if 'Real Speed' in content:
+                            for line in content.split('\n'):
+                                if 'Real Speed' in line:
+                                    gflops = line.split()[3]
+                                    print(f"      GFlops: {gflops}")
+                                    break
         
         # Preguntar si mostrar comparación final
         response = input("\n¿Mostrar comparación final? (s/n): ")
@@ -171,12 +197,14 @@ class RealtimeController:
         
         # Preguntar configuración
         try:
-            processors = int(input("Número de procesadores a usar (default=2): ") or "2")
+            n_kb = int(input("Tamaño N en KB (1=1024, 2=2048, 4=4096, 8=8192) [default=4]: ") or "4")
+            if n_kb not in [1, 2, 4, 8]:
+                n_kb = 4
         except:
-            processors = 2
+            n_kb = 4
         
         # Iniciar simulación
-        self.start_simulation(processors)
+        self.start_simulation(n_kb)
         
         # Esperar un poco
         time.sleep(3)

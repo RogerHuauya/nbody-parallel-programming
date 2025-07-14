@@ -43,20 +43,34 @@ class RealtimeNBodyVisualizer:
             self.axes.append(ax)
         
         # Inicializar datos de simulación
-        self.sizes = [1, 2, 4, 8]
-        for i, N in enumerate(self.sizes):
-            self.simulations[N] = {
-                'dir': f"{base_dir}/N_{N}KB",
+        self.processors = [1, 2, 4, 8]
+        self.n_size = self.get_n_size()
+        
+        for i, P in enumerate(self.processors):
+            self.simulations[P] = {
+                'dir': f"{base_dir}/P{P}_N{self.n_size}KB",
+                'processors': P,
                 'particles': None,
                 'scatter': None,
                 'current_snapshot': -1,
                 'snapshots': deque(maxlen=10),  # Mantener últimos 10 snapshots
                 'status': 'waiting',
-                'ax': self.axes[i]
+                'ax': self.axes[i],
+                'start_time': None,
+                'processing_times': []
             }
         
         # Configurar controles
         self.setup_controls()
+        
+    def get_n_size(self):
+        """Obtener el tamaño N del archivo de información"""
+        try:
+            with open(f"{self.base_dir}/info.json", 'r') as f:
+                info = json.load(f)
+                return info['n_particles'] // 1024
+        except:
+            return 4  # Default 4KB = 4096 partículas
         
     def setup_controls(self):
         """Configurar controles interactivos"""
@@ -74,7 +88,7 @@ class RealtimeNBodyVisualizer:
     def monitor_files(self):
         """Thread para monitorear archivos nuevos"""
         while self.running:
-            for N, sim in self.simulations.items():
+            for P, sim in self.simulations.items():
                 snapshot_dir = f"{sim['dir']}/snapshots"
                 
                 if os.path.exists(snapshot_dir):
@@ -86,12 +100,17 @@ class RealtimeNBodyVisualizer:
                         next_idx = sim['current_snapshot'] + 1
                         if next_idx < len(snapshots):
                             try:
+                                start_load = time.time()
                                 data = self.load_snapshot(snapshots[next_idx])
+                                load_time = time.time() - start_load
+                                
                                 if data is not None:
-                                    self.data_queue.put((N, data, next_idx))
+                                    self.data_queue.put((P, data, next_idx, load_time))
                                     sim['status'] = 'running'
+                                    if sim['start_time'] is None:
+                                        sim['start_time'] = time.time()
                             except Exception as e:
-                                print(f"Error loading snapshot for N={N}: {e}")
+                                print(f"Error loading snapshot for P={P}: {e}")
                 
                 # Verificar estado
                 status_file = f"{sim['dir']}/status.txt"
@@ -139,18 +158,19 @@ class RealtimeNBodyVisualizer:
         updated = False
         while not self.data_queue.empty():
             try:
-                N, data, snapshot_idx = self.data_queue.get_nowait()
-                sim = self.simulations[N]
+                P, data, snapshot_idx, load_time = self.data_queue.get_nowait()
+                sim = self.simulations[P]
                 sim['particles'] = data
                 sim['current_snapshot'] = snapshot_idx
                 sim['snapshots'].append(data)
+                sim['processing_times'].append(load_time)
                 updated = True
             except queue.Empty:
                 break
         
         # Actualizar cada subplot
-        for i, N in enumerate(self.sizes):
-            sim = self.simulations[N]
+        for i, P in enumerate(self.processors):
+            sim = self.simulations[P]
             ax = sim['ax']
             
             if sim['particles'] is not None:
@@ -168,11 +188,13 @@ class RealtimeNBodyVisualizer:
                 ax.set_zlim(-max_range/2, max_range/2)
                 
                 # Dibujar partículas
+                # Color basado en procesadores para diferenciar
+                color_map = {1: 'Reds', 2: 'Blues', 4: 'Greens', 8: 'Purples'}
                 scatter = ax.scatter(positions[:, 0], 
                                    positions[:, 1], 
                                    positions[:, 2],
                                    c=masses, 
-                                   cmap='plasma',
+                                   cmap=color_map.get(P, 'plasma'),
                                    s=20*masses/masses.max() + 5,
                                    alpha=0.8,
                                    edgecolors='white',
@@ -201,22 +223,39 @@ class RealtimeNBodyVisualizer:
                 ax.set_xlabel('X', fontsize=8)
                 ax.set_ylabel('Y', fontsize=8)
                 ax.set_zlabel('Z', fontsize=8)
-                ax.set_title(f'N = {N*1024} particles\nSnapshot: {sim["current_snapshot"]}\nStatus: {sim["status"]}', 
+                
+                # Calcular métricas de rendimiento
+                if sim['processing_times']:
+                    avg_time = np.mean(sim['processing_times'][-10:])  # Últimos 10
+                    fps = 1.0 / avg_time if avg_time > 0 else 0
+                    speedup = sim['processing_times'][0] / avg_time if len(sim['processing_times']) > 0 else 1
+                else:
+                    fps = 0
+                    speedup = 1
+                
+                ax.set_title(f'P = {P} procesadores | N = {self.n_size*1024} partículas\n' +
+                           f'Snapshot: {sim["current_snapshot"]} | FPS: {fps:.1f} | ' +
+                           f'Speedup: {speedup:.2f}x', 
                            fontsize=10)
                 
                 # Ajustar vista
                 ax.view_init(elev=20, azim=frame * self.speed_slider.val)
             else:
-                ax.set_title(f'N = {N*1024} particles\nWaiting for data...', fontsize=10)
+                ax.set_title(f'P = {P} procesadores | N = {self.n_size*1024} partículas\nEsperando datos...', fontsize=10)
                 ax.set_xlim(-1, 1)
                 ax.set_ylim(-1, 1)
                 ax.set_zlim(-1, 1)
         
         # Actualizar información de estado
-        status_info = f"Realtime N-Body Visualization | Time: {datetime.now().strftime('%H:%M:%S')}\n"
-        for N in self.sizes:
-            sim = self.simulations[N]
-            status_info += f"N={N*1024}: Snapshot {sim['current_snapshot']} | "
+        status_info = f"Realtime N-Body Visualization | N = {self.n_size*1024} partículas (constante) | Time: {datetime.now().strftime('%H:%M:%S')}\n"
+        status_info += "Rendimiento: "
+        for P in self.processors:
+            sim = self.simulations[P]
+            if sim['processing_times']:
+                avg_time = np.mean(sim['processing_times'][-10:])
+                status_info += f"P{P}: {1/avg_time:.1f} FPS | "
+            else:
+                status_info += f"P{P}: -- FPS | "
         self.status_text.set_text(status_info)
         
         return self.axes
@@ -258,18 +297,28 @@ class RealtimeNBodyVisualizer:
 def plot_final_comparison():
     """Generar comparación final de todas las simulaciones"""
     base_dir = 'realtime_simulations'
-    sizes = [1, 2, 4, 8]
+    processors = [1, 2, 4, 8]
+    
+    # Obtener N del archivo info
+    try:
+        with open(f"{base_dir}/info.json", 'r') as f:
+            info = json.load(f)
+            n_particles = info['n_particles']
+            n_size = n_particles // 1024
+    except:
+        n_size = 4
+        n_particles = 4096
     
     fig = plt.figure(figsize=(16, 12))
-    fig.suptitle('Final State Comparison - N-Body Simulations', fontsize=16)
+    fig.suptitle(f'Comparación de Rendimiento - N = {n_particles} partículas', fontsize=16)
     
-    for i, N in enumerate(sizes):
+    for i, P in enumerate(processors):
         ax = fig.add_subplot(2, 2, i+1, projection='3d')
         
         # Buscar snapshot final
-        final_snapshot = f"{base_dir}/N_{N}KB/snapshots/snapshot_final.dat"
+        final_snapshot = f"{base_dir}/P{P}_N{n_size}KB/snapshots/snapshot_final.dat"
         if not os.path.exists(final_snapshot):
-            snapshots = sorted(glob.glob(f"{base_dir}/N_{N}KB/snapshots/snapshot_*.dat"))
+            snapshots = sorted(glob.glob(f"{base_dir}/P{P}_N{n_size}KB/snapshots/snapshot_*.dat"))
             if snapshots:
                 final_snapshot = snapshots[-1]
         
@@ -300,10 +349,23 @@ def plot_final_comparison():
                 ax.set_xlabel('X')
                 ax.set_ylabel('Y')
                 ax.set_zlabel('Z')
-                ax.set_title(f'N = {N*1024} particles - Final State')
+                ax.set_title(f'P = {P} procesadores - Estado Final')
                 ax.view_init(elev=30, azim=45)
+                
+                # Añadir información de rendimiento
+                output_file = f"{base_dir}/P{P}_N{n_size}KB/output.log"
+                if os.path.exists(output_file):
+                    with open(output_file, 'r') as f:
+                        content = f.read()
+                        if 'Real Speed' in content:
+                            for line in content.split('\n'):
+                                if 'Real Speed' in line:
+                                    gflops = line.split()[3]
+                                    ax.text2D(0.05, 0.95, f'GFlops: {gflops}', 
+                                            transform=ax.transAxes, fontsize=10)
+                                    break
         else:
-            ax.set_title(f'N = {N*1024} particles - No data')
+            ax.set_title(f'P = {P} procesadores - Sin datos')
     
     plt.tight_layout()
     plt.savefig(f'{base_dir}/final_comparison.png', dpi=300)

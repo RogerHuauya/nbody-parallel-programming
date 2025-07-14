@@ -24,6 +24,12 @@ data.*
 # Archivos de configuración temporal
 phi-GPU*.cfg
 
+# Directorios de simulación en tiempo real
+realtime_simulations/
+datasets/
+snapshots/
+performance_data/
+
 # Resultados de experimentos
 results/timing/*.txt
 results/timing/*.csv
@@ -32,11 +38,15 @@ results/error/*.png
 results/error/*.csv
 results/snapshots/*.dat
 
-# Gráficos generados
+# Gráficos generados (pero mantener algunos importantes)
 *.png
 *.pdf
 *.eps
 *.svg
+!strong_scaling_analysis.png
+!weak_scaling_analysis.png
+!combined_scaling_analysis.png
+!baseline_performance_analysis.png
 
 # Archivos de Python
 __pycache__/
@@ -151,6 +161,10 @@ Makefile.bak
 *.temp
 *~
 
+# Archivos CSV de resultados
+scaling_results.csv
+parallel_visualization_results.csv
+
 # Archivos de backup
 *.bak
 *.backup
@@ -208,4 +222,12 @@ results/error/.gitkeep
 results/snapshots/.gitkeep
 !results/timing/.gitkeep
 !results/error/.gitkeep
-!results/snapshots/.gitkeep 
+!results/snapshots/.gitkeep
+
+# Archivos temporales del sistema N-Body
+N-Body/
+legacy/
+old_files/
+*.ptx
+machines*
+!Makefile 

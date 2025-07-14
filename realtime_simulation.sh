@@ -1,15 +1,16 @@
 #!/bin/bash
 
-# Script para ejecutar simulaciones N-Body en paralelo con snapshots frecuentes
-# para visualización en tiempo real
+# Script para ejecutar simulaciones N-Body con diferentes procesadores
+# para demostrar speedup en visualización en tiempo real
 
 # Configuración
-PROCESSORS=${1:-2}  # Número de procesadores (por defecto 2)
+N_SIZE=${1:-4}  # Tamaño N en KB (por defecto 4 = 4096 partículas)
 REALTIME_DIR="realtime_simulations"
-SIZES=(1 2 4 8)  # N valores: 1024, 2048, 4096, 8192 partículas
+PROCESSORS=(1 2 4 8)  # Diferentes números de procesadores para mostrar speedup
 
 echo "=== SIMULACIÓN N-BODY EN TIEMPO REAL ==="
-echo "Procesadores: $PROCESSORS"
+echo "N = $((N_SIZE*1024)) partículas (constante)"
+echo "Procesadores a probar: ${PROCESSORS[@]}"
 echo "Directorio: $REALTIME_DIR"
 
 # Verificar que los ejecutables existan
@@ -29,11 +30,11 @@ mkdir -p $REALTIME_DIR
 
 # Función para ejecutar simulación con snapshots frecuentes
 run_simulation() {
-    local N=$1
-    local PROC=$2
-    local DIR="$REALTIME_DIR/N_${N}KB"
+    local PROC=$1
+    local N=$N_SIZE
+    local DIR="$REALTIME_DIR/P${PROC}_N${N}KB"
     
-    echo "[N=$((N*1024))] Iniciando simulación con $PROC procesadores..."
+    echo "[P=$PROC] Iniciando simulación con N=$((N*1024)) partículas..."
     
     # Crear directorio
     mkdir -p "$DIR/snapshots"
@@ -96,20 +97,20 @@ EOF
     
     cd ../..
     
-    echo "[N=$((N*1024))] Simulación completada. Snapshots en $DIR/snapshots/"
+    echo "[P=$PROC] Simulación completada. Snapshots en $DIR/snapshots/"
 }
 
 # Ejecutar todas las simulaciones en paralelo
 echo ""
-echo "Iniciando simulaciones en paralelo..."
-echo "=================================="
+echo "Iniciando simulaciones con diferentes procesadores..."
+echo "=================================================="
 
 # Array para almacenar PIDs
 pids=()
 
 # Lanzar simulaciones en background
-for N in "${SIZES[@]}"; do
-    run_simulation $N $PROCESSORS &
+for PROC in "${PROCESSORS[@]}"; do
+    run_simulation $PROC &
     pids+=($!)
     
     # Pequeña pausa para evitar conflictos de archivos
@@ -119,9 +120,9 @@ done
 # Crear archivo de información
 cat > "$REALTIME_DIR/info.json" << EOF
 {
-    "processors": $PROCESSORS,
-    "sizes": [1024, 2048, 4096, 8192],
-    "directories": ["N_1KB", "N_2KB", "N_4KB", "N_8KB"],
+    "n_particles": $((N_SIZE*1024)),
+    "processors": [1, 2, 4, 8],
+    "directories": ["P1_N${N_SIZE}KB", "P2_N${N_SIZE}KB", "P4_N${N_SIZE}KB", "P8_N${N_SIZE}KB"],
     "status": "running",
     "start_time": "$(date -Iseconds)"
 }
@@ -151,10 +152,11 @@ echo "Resultados en: $REALTIME_DIR/"
 # Generar resumen
 echo ""
 echo "=== RESUMEN ==="
-for N in "${SIZES[@]}"; do
-    DIR="$REALTIME_DIR/N_${N}KB"
+echo "N = $((N_SIZE*1024)) partículas (constante)"
+for PROC in "${PROCESSORS[@]}"; do
+    DIR="$REALTIME_DIR/P${PROC}_N${N_SIZE}KB"
     if [ -d "$DIR/snapshots" ]; then
         count=$(ls -1 "$DIR/snapshots"/snapshot_*.dat 2>/dev/null | wc -l)
-        echo "N=$((N*1024)): $count snapshots generados"
+        echo "P=$PROC procesadores: $count snapshots generados"
     fi
 done 

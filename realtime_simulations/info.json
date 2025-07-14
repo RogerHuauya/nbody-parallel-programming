@@ -1,7 +1,7 @@
 {
-    "processors": 2,
-    "sizes": [1024, 2048, 4096, 8192],
-    "directories": ["N_1KB", "N_2KB", "N_4KB", "N_8KB"],
+    "n_particles": 4096,
+    "processors": [1, 2, 4, 8],
+    "directories": ["P1_N4KB", "P2_N4KB", "P4_N4KB", "P8_N4KB"],
     "status": "running",
-    "start_time": "2025-07-12T23:18:24-05:00"
+    "start_time": "2025-07-13T21:06:51-05:00"
 }
