@@ -22,13 +22,11 @@ mkdir -p datasets
 mkdir -p snapshots
 mkdir -p performance_data
 
-# Crear archivos CSV para los resultados
+# Crear archivo CSV para los resultados
 echo "N_particles,processors,time_seconds,gflops,scaling_type" > performance_data/scaling_results.csv
-echo "N_particles,time_seconds,gflops" > performance_data/strong_scaling.csv
-echo "processors,time_per_particle,efficiency" > performance_data/weak_scaling.csv
 
 # Diferentes tamaños N (potencias de 2)
-sizes=(1 2 4 8 16 32 64 128 256 512 1024 2048 4096 8192)  # Equivale a 1024, 2048, 4096, 8192 partículas
+sizes=(1 2 4 8 16 32 64 128 256 512 1024 2048 4096 8192)
 processors=(1 2 4 8)  # Diferentes números de procesadores para scaling
 
 echo "=== GENERANDO DATOS PARA STRONG SCALING ==="
@@ -67,7 +65,6 @@ EOF
     
     # Guardar en CSV
     echo "$((FIXED_N*1024)),$proc,$execution_time,$gflops,strong" >> ../../performance_data/scaling_results.csv
-    echo "$((FIXED_N*1024)),$execution_time,$gflops" >> ../../performance_data/strong_scaling.csv
     
     echo "Tiempo: ${execution_time}s, GFlops: $gflops"
     
@@ -117,7 +114,6 @@ EOF
     
     # Guardar en CSV
     echo "$((N_scaled*1024)),$proc,$execution_time,$gflops,weak" >> ../../performance_data/scaling_results.csv
-    echo "$proc,$time_per_particle,1.0" >> ../../performance_data/weak_scaling.csv
     
     echo "Tiempo: ${execution_time}s, Tiempo/partícula: ${time_per_particle}s"
     
@@ -177,9 +173,7 @@ echo "Datos de rendimiento en: performance_data/"
 
 # Mostrar resumen de archivos generados
 echo ""
-echo "=== ARCHIVOS CSV GENERADOS ==="
-echo "1. scaling_results.csv - Todos los resultados"
-echo "2. strong_scaling.csv - Datos de strong scaling"
-echo "3. weak_scaling.csv - Datos de weak scaling"
+echo "=== ARCHIVO CSV GENERADO ==="
+echo "1. scaling_results.csv - Todos los resultados de scaling"
 
 ls -la performance_data/ 

@@ -94,7 +94,6 @@ def plot_strong_scaling(df_strong):
     
     plt.tight_layout()
     plt.savefig('performance_data/strong_scaling_analysis.png', dpi=300)
-    plt.savefig('performance_data/strong_scaling_analysis.pdf')
     
     # Imprimir tabla de resultados
     print("\n=== RESULTADOS DE STRONG SCALING ===")
@@ -165,7 +164,6 @@ def plot_weak_scaling(df_weak):
     
     plt.tight_layout()
     plt.savefig('performance_data/weak_scaling_analysis.png', dpi=300)
-    plt.savefig('performance_data/weak_scaling_analysis.pdf')
     
     # Imprimir tabla de resultados
     print("\n=== RESULTADOS DE WEAK SCALING ===")
@@ -215,7 +213,6 @@ def plot_combined_analysis(df_all):
     
     plt.tight_layout()
     plt.savefig('performance_data/combined_scaling_analysis.png', dpi=300)
-    plt.savefig('performance_data/combined_scaling_analysis.pdf')
 
 def plot_baseline_performance(df_baseline):
     """Graficar el rendimiento base para diferentes tamaños de N"""
@@ -251,50 +248,7 @@ def plot_baseline_performance(df_baseline):
     
     plt.tight_layout()
     plt.savefig('performance_data/baseline_performance.png', dpi=300)
-    plt.savefig('performance_data/baseline_performance.pdf')
 
-def generate_report():
-    """Generar un reporte completo en formato texto"""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    report = f"""
-================================================================================
-                    REPORTE DE ANÁLISIS DE ESCALABILIDAD
-                           N-BODY SIMULATION
-                              {timestamp}
-================================================================================
-
-Este reporte presenta los resultados del análisis de escalabilidad para la
-simulación N-Body utilizando paralelización MPI.
-
-CONFIGURACIÓN DEL EXPERIMENTO:
-- Algoritmo: N-Body (Hermite 4th order)
-- Paralelización: MPI
-- Procesadores evaluados: 1, 2, 4
-- Tamaño fijo (Strong Scaling): 4096 partículas
-- Partículas por procesador (Weak Scaling): 1024
-
-ARCHIVOS GENERADOS:
-1. strong_scaling_analysis.png/pdf - Análisis completo de strong scaling
-2. weak_scaling_analysis.png/pdf - Análisis completo de weak scaling
-3. combined_scaling_analysis.png/pdf - Comparación de ambos tipos
-4. baseline_performance.png/pdf - Rendimiento base para diferentes N
-
-CONCLUSIONES:
-- El análisis de strong scaling muestra el speedup obtenido al aumentar
-  el número de procesadores para un tamaño de problema fijo.
-- El análisis de weak scaling evalúa la capacidad del sistema para mantener
-  el rendimiento al aumentar proporcionalmente el problema y los recursos.
-- Los resultados demuestran la eficiencia de la paralelización del algoritmo
-  N-Body para los tamaños de problema evaluados.
-
-================================================================================
-"""
-    
-    with open('performance_data/scaling_report.txt', 'w') as f:
-        f.write(report)
-    
-    print(report)
 
 def main():
     """Función principal"""
@@ -333,11 +287,7 @@ def main():
     if not df_baseline.empty:
         print("\nGenerando análisis de rendimiento base...")
         plot_baseline_performance(df_baseline)
-    
-    # Generar reporte
-    print("\nGenerando reporte final...")
-    generate_report()
-    
+  
     print("\n¡Análisis completado! Revisa los archivos en performance_data/")
 
 if __name__ == "__main__":

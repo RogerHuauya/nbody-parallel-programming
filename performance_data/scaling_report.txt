@@ -2,7 +2,7 @@
 ================================================================================
                     REPORTE DE ANÁLISIS DE ESCALABILIDAD
                            N-BODY SIMULATION
-                              2025-07-13 09:08:51
+                              2025-07-13 19:44:00
 ================================================================================
 
 Este reporte presenta los resultados del análisis de escalabilidad para la
@@ -20,7 +20,6 @@ ARCHIVOS GENERADOS:
 2. weak_scaling_analysis.png/pdf - Análisis completo de weak scaling
 3. combined_scaling_analysis.png/pdf - Comparación de ambos tipos
 4. baseline_performance.png/pdf - Rendimiento base para diferentes N
-5. comprehensive_scaling_analysis.png/pdf - Análisis comprehensivo completo
 
 CONCLUSIONES:
 - El análisis de strong scaling muestra el speedup obtenido al aumentar
