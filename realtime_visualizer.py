@@ -74,13 +74,6 @@ class RealtimeNBodyVisualizer:
         
     def setup_controls(self):
         """Configurar controles interactivos"""
-        # Botones para cambiar vista
-        from matplotlib.widgets import Button, Slider
-        
-        # Slider para velocidad de reproducción
-        ax_speed = plt.axes([0.15, 0.02, 0.3, 0.03])
-        self.speed_slider = Slider(ax_speed, 'Speed', 0.1, 5.0, valinit=1.0)
-        
         # Información de estado
         self.status_text = self.fig.text(0.02, 0.98, '', fontsize=10, 
                                         verticalalignment='top', color='green')
@@ -238,8 +231,8 @@ class RealtimeNBodyVisualizer:
                            f'Speedup: {speedup:.2f}x', 
                            fontsize=10)
                 
-                # Ajustar vista
-                ax.view_init(elev=20, azim=frame * self.speed_slider.val)
+                # Vista fija sin rotación
+                ax.view_init(elev=30, azim=45)
             else:
                 ax.set_title(f'P = {P} procesadores | N = {self.n_size*1024} partículas\nEsperando datos...', fontsize=10)
                 ax.set_xlim(-1, 1)
@@ -265,7 +258,6 @@ class RealtimeNBodyVisualizer:
         print("=== VISUALIZADOR N-BODY EN TIEMPO REAL ===")
         print(f"Monitoreando: {self.base_dir}")
         print("Controles:")
-        print("  - Slider: Ajustar velocidad de rotación")
         print("  - Cerrar ventana: Detener visualización")
         print("")
         

@@ -46,7 +46,7 @@ run_simulation() {
     # Crear archivo de configuración para snapshots muy frecuentes
     # eps, t_end, dt_disk, dt_contr, eta, eta_BH, input_file
     cat > "$DIR/phi-GPU4.cfg" << EOF
-0.01 10.0 0.01 0.01 0.02 0.02 data.inp
+0.1 100.0 0.01 0.01 0.02 0.02 data.inp
 EOF
     
     # Cambiar al directorio y ejecutar
