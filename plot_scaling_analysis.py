@@ -115,15 +115,30 @@ def plot_weak_scaling(df_weak):
         return
     
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
-    fig.suptitle('Análisis de Weak Scaling - N-Body Simulation', fontsize=16, fontweight='bold')
+    fig.suptitle('Análisis de Weak Scaling - N-Body Simulation\n(Nota: N-Body tiene complejidad O(N²), por lo que el weak scaling no es ideal)', fontsize=14, fontweight='bold')
+    
+    # Crear una copia para evitar SettingWithCopyWarning
+    df_weak = df_weak.copy()
     
     # Calcular tiempo por partícula
     df_weak['time_per_particle'] = df_weak['time_seconds'] / df_weak['N_particles']
     base_time_per_particle = df_weak[df_weak['processors'] == 1]['time_per_particle'].values[0]
     
     # 1. Tiempo total vs Procesadores
-    ax1.plot(df_weak['processors'], df_weak['time_seconds'], 'bo-', label='Tiempo real')
+    ax1.plot(df_weak['processors'], df_weak['time_seconds'], 'bo-', label='Tiempo real', markersize=10)
     ax1.axhline(y=df_weak['time_seconds'].iloc[0], color='r', linestyle='--', label='Tiempo ideal constante')
+    
+    # Agregar curva teórica O(N²)
+    base_time = df_weak['time_seconds'].iloc[0]
+    theoretical_times = base_time * df_weak['processors'].values  # Como N crece linealmente pero el trabajo crece cuadráticamente
+    ax1.plot(df_weak['processors'], theoretical_times, 'g:', label='Teórico O(N²)', linewidth=2)
+    
+    # Agregar valores de N en cada punto
+    for i, row in df_weak.iterrows():
+        ax1.annotate(f'N={row["N_particles"]}', 
+                    (row['processors'], row['time_seconds']),
+                    textcoords="offset points", xytext=(0,10), ha='center', fontsize=9)
+    
     ax1.set_xlabel('Número de Procesadores')
     ax1.set_ylabel('Tiempo de Ejecución (s)')
     ax1.set_title('Tiempo de Ejecución vs Procesadores (N proporcional)')
@@ -132,7 +147,14 @@ def plot_weak_scaling(df_weak):
     ax1.set_xticks(df_weak['processors'])
     
     # 2. Tiempo por partícula
-    ax2.plot(df_weak['processors'], df_weak['time_per_particle'] * 1000, 'go-', label='Tiempo/partícula')
+    ax2.plot(df_weak['processors'], df_weak['time_per_particle'] * 1000, 'go-', label='Tiempo/partícula', markersize=10)
+    
+    # Agregar valores de N en cada punto
+    for i, row in df_weak.iterrows():
+        ax2.annotate(f'N={row["N_particles"]}', 
+                    (row['processors'], row['time_per_particle'] * 1000),
+                    textcoords="offset points", xytext=(0,10), ha='center', fontsize=9)
+    
     ax2.set_xlabel('Número de Procesadores')
     ax2.set_ylabel('Tiempo por Partícula (ms)')
     ax2.set_title('Tiempo por Partícula vs Procesadores')
@@ -143,18 +165,37 @@ def plot_weak_scaling(df_weak):
     # 3. Eficiencia de Weak Scaling
     weak_efficiency = (df_weak['time_seconds'].iloc[0] / df_weak['time_seconds']) * 100
     
-    ax3.plot(df_weak['processors'], weak_efficiency, 'mo-', label='Eficiencia')
+    ax3.plot(df_weak['processors'], weak_efficiency, 'mo-', label='Eficiencia', markersize=10)
     ax3.axhline(y=100, color='r', linestyle='--', label='Eficiencia ideal (100%)')
+    
+    # Agregar valores de N y eficiencia en cada punto
+    for idx, (i, row) in enumerate(df_weak.iterrows()):
+        eff = weak_efficiency.iloc[idx]
+        ax3.annotate(f'N={row["N_particles"]}\n{eff:.1f}%', 
+                    (row['processors'], eff),
+                    textcoords="offset points", xytext=(0,10), ha='center', fontsize=8)
+    
     ax3.set_xlabel('Número de Procesadores')
     ax3.set_ylabel('Eficiencia de Weak Scaling (%)')
     ax3.set_title('Eficiencia de Weak Scaling')
     ax3.legend()
     ax3.grid(True)
-    ax3.set_ylim(0, 110)
+    ax3.set_ylim(0, 120)
     ax3.set_xticks(df_weak['processors'])
     
     # 4. Partículas vs Procesadores
-    ax4.plot(df_weak['processors'], df_weak['N_particles'], 'co-', label='Partículas')
+    ax4.plot(df_weak['processors'], df_weak['N_particles'], 'co-', label='Partículas', markersize=10)
+    
+    # Agregar valores exactos en cada punto
+    for i, row in df_weak.iterrows():
+        ax4.annotate(f'{row["N_particles"]}', 
+                    (row['processors'], row['N_particles']),
+                    textcoords="offset points", xytext=(0,10), ha='center', fontsize=9)
+    
+    # Agregar línea de tendencia ideal (partículas = 1024 * procesadores)
+    ideal_particles = df_weak['processors'] * 1024
+    ax4.plot(df_weak['processors'], ideal_particles, 'r--', label='Ideal (1024*p)', alpha=0.7)
+    
     ax4.set_xlabel('Número de Procesadores')
     ax4.set_ylabel('Número de Partículas')
     ax4.set_title('Tamaño del Problema vs Procesadores')
