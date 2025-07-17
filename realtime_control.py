@@ -179,10 +179,13 @@ class RealtimeController:
         print("\nResultados por procesador:")
         
         for P in processors:
-            snapshot_dir = f"{base_dir}/P{P}_N{n_size}KB/snapshots"
-            if os.path.exists(snapshot_dir):
-                count = len([f for f in os.listdir(snapshot_dir) if f.startswith('snapshot_')])
-                print(f"P={P}: {count} snapshots generados")
+            sim_dir = f"{base_dir}/P{P}_N{n_size}KB"
+            if os.path.exists(sim_dir):
+                data_con_file = f"{sim_dir}/data.con"
+                if os.path.exists(data_con_file):
+                    print(f"P={P}: data.con generado")
+                else:
+                    print(f"P={P}: sin data.con")
                 
                 # Buscar GFlops en output.log
                 output_file = f"{base_dir}/P{P}_N{n_size}KB/output.log"

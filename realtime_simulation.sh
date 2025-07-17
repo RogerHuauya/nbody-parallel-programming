@@ -28,6 +28,11 @@ fi
 rm -rf $REALTIME_DIR
 mkdir -p $REALTIME_DIR
 
+# Generar datos iniciales una sola vez para todas las simulaciones
+echo "Generando datos iniciales..."
+./bin/gen-plum $N_SIZE 1
+mv data.inp "$REALTIME_DIR/"
+
 # Función para ejecutar simulación con snapshots frecuentes
 run_simulation() {
     local PROC=$1
@@ -37,11 +42,10 @@ run_simulation() {
     echo "[P=$PROC] Iniciando simulación con N=$((N*1024)) partículas..."
     
     # Crear directorio
-    mkdir -p "$DIR/snapshots"
+    mkdir -p "$DIR"
     
-    # Generar datos iniciales
-    ./bin/gen-plum $N 1
-    mv data.inp "$DIR/"
+    # Usar el mismo archivo de datos iniciales para todas las simulaciones
+    cp "$REALTIME_DIR/data.inp" "$DIR/"
     
     # Crear archivo de configuración para snapshots muy frecuentes
     # eps, t_end, dt_disk, dt_contr, eta, eta_BH, input_file
@@ -54,50 +58,17 @@ EOF
     
     # Crear archivo de estado
     echo "RUNNING" > status.txt
-    echo "0" > current_step.txt
-    
-    # Ejecutar simulación y guardar snapshots
-    (
-        # Loop para capturar snapshots durante la ejecución
-        step=0
-        while true; do
-            if [ -f "data.con" ]; then
-                # Copiar snapshot con timestamp
-                cp data.con "snapshots/snapshot_$(printf "%04d" $step).dat"
-                echo $step > current_step.txt
-                ((step++))
-                
-                # Pequeña pausa para no saturar el sistema
-                sleep 0.1
-            fi
-            
-            # Verificar si la simulación terminó
-            if [ -f "simulation_complete.flag" ]; then
-                break
-            fi
-        done
-    ) &
-    MONITOR_PID=$!
     
     # Ejecutar la simulación
     echo "[N=$((N*1024))] Ejecutando simulación..."
     mpirun -np $PROC ../../bin/cpu-4th > output.log 2>&1
     
     # Marcar como completada
-    touch simulation_complete.flag
     echo "COMPLETED" > status.txt
-    
-    # Esperar al monitor
-    wait $MONITOR_PID
-    
-    # Copiar archivo final
-    if [ -f "data.con" ]; then
-        cp data.con "snapshots/snapshot_final.dat"
-    fi
     
     cd ../..
     
-    echo "[P=$PROC] Simulación completada. Snapshots en $DIR/snapshots/"
+    echo "[P=$PROC] Simulación completada. Archivos .dat en $DIR/"
 }
 
 # Ejecutar todas las simulaciones en paralelo
@@ -155,8 +126,11 @@ echo "=== RESUMEN ==="
 echo "N = $((N_SIZE*1024)) partículas (constante)"
 for PROC in "${PROCESSORS[@]}"; do
     DIR="$REALTIME_DIR/P${PROC}_N${N_SIZE}KB"
-    if [ -d "$DIR/snapshots" ]; then
-        count=$(ls -1 "$DIR/snapshots"/snapshot_*.dat 2>/dev/null | wc -l)
-        echo "P=$PROC procesadores: $count snapshots generados"
+    if [ -d "$DIR" ]; then
+        if [ -f "$DIR/data.con" ]; then
+            echo "P=$PROC procesadores: data.con generado"
+        else
+            echo "P=$PROC procesadores: sin data.con"
+        fi
     fi
 done 

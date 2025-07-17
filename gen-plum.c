@@ -23,7 +23,7 @@
 
 #define Pi 3.141592653589793238462643
 
-#define KB 500
+#define KB 100
 #define N_MAX 4 * 1024 * KB
 
 /*
@@ -107,7 +107,13 @@ int main(int argc, char *argv[]) {
     X2 = my_rand();
     X3 = my_rand();
 
-    R = 1.0 / sqrt((pow(X1, -2.0 / 3.0) - 1.0));
+    // Avoid X1 = 1.0 or X1 = 0.0 to prevent floating point exceptions
+    if (X1 >= 1.0 || X1 <= 0.0) continue;
+    
+    double expr = pow(X1, -2.0 / 3.0) - 1.0;
+    if (expr <= 0.0) continue;  // Avoid sqrt of non-positive numbers
+    
+    R = 1.0 / sqrt(expr);
 
     if (R < 100.0) {
 
@@ -156,11 +162,19 @@ int main(int argc, char *argv[]) {
           if(tmp_i.rem == 0) printf("i = %d \n", i);
       */
 
-      tmp_i = ldiv(i, N / 64);
-
-      if (tmp_i.rem == 0) {
-        printf(".");
-        fflush(stdout);
+      // Avoid division by zero when N < 64
+      if (N >= 64) {
+        tmp_i = ldiv(i, N / 64);
+        if (tmp_i.rem == 0) {
+          printf(".");
+          fflush(stdout);
+        }
+      } else {
+        // For small N, just print a dot every 10 particles
+        if (i % 10 == 0) {
+          printf(".");
+          fflush(stdout);
+        }
       }
 
       i++;

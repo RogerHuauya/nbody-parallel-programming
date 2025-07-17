@@ -126,7 +126,8 @@ class RealtimeNBodyVisualizer:
                 'velocities': None,
                 'energies': None,
                 't_end': t_end_val,
-                'current_time': 0.0
+                'current_time': 0.0,
+                'last_mtime': 0
             }
         
         # Setup controls
@@ -177,41 +178,54 @@ class RealtimeNBodyVisualizer:
         self.show_trails = not self.show_trails
         
     def monitor_files(self):
-        """Thread para monitorear archivos nuevos"""
+        """Thread para monitorear data.con directamente"""
         while self.running:
             for P, sim in self.simulations.items():
-                snapshot_dir = f"{sim['dir']}/snapshots"
+                sim_dir = sim['dir']
+                data_con_file = f"{sim_dir}/data.con"
                 
-                if os.path.exists(snapshot_dir):
-                    # Buscar nuevos snapshots
-                    snapshots = sorted(glob.glob(f"{snapshot_dir}/snapshot_*.dat"))
-                    # Remove empty files that can appear when snapshot is being written
-                    snapshots = [s for s in snapshots if os.path.getsize(s) > 0]
-                    
-                    if snapshots and len(snapshots) > sim['current_snapshot'] + 1:
-                        # Cargar el siguiente snapshot
-                        next_idx = sim['current_snapshot'] + 1
-                        if next_idx < len(snapshots):
-                            try:
+                if os.path.exists(data_con_file):
+                    try:
+                        # Check if data.con has been updated
+                        current_mtime = os.path.getmtime(data_con_file)
+                        
+                        # Only process if file has been modified since last read
+                        if current_mtime > sim.get('last_mtime', 0):
+                            # Check if file is stable (not being written)
+                            initial_size = os.path.getsize(data_con_file)
+                            time.sleep(0.01)  # Small delay to ensure write is complete
+                            final_size = os.path.getsize(data_con_file)
+                            
+                            if initial_size == final_size and final_size > 0:
                                 start_load = time.time()
-                                data = self.load_snapshot(snapshots[next_idx])
+                                data = self.load_snapshot(data_con_file)
                                 load_time = time.time() - start_load
                                 
                                 if data is not None:
-                                    # Calculate velocities and energies for visualization
+                                    # Calculate velocities for visualization
                                     if sim['particles'] is not None:
                                         old_pos = sim['particles']['positions']
                                         new_pos = data['positions']
-                                        data['velocities'] = np.linalg.norm(new_pos - old_pos, axis=1)
+                                        
+                                        # Only calculate velocities if particle counts match
+                                        if old_pos.shape[0] == new_pos.shape[0]:
+                                            data['velocities'] = np.linalg.norm(new_pos - old_pos, axis=1)
+                                        else:
+                                            # Particle count mismatch - use zeros for now
+                                            data['velocities'] = np.zeros(data['n_particles'])
                                     else:
                                         data['velocities'] = np.zeros(data['n_particles'])
                                     
-                                    self.data_queue.put((P, data, next_idx, load_time))
+                                    # Update last modification time
+                                    sim['last_mtime'] = current_mtime
+                                    sim['current_snapshot'] += 1
+                                    
+                                    self.data_queue.put((P, data, sim['current_snapshot'], load_time))
                                     sim['status'] = 'running'
                                     if sim['start_time'] is None:
                                         sim['start_time'] = time.time()
-                            except Exception as e:
-                                print(f"Error loading snapshot for P={P}: {e}")
+                    except Exception as e:
+                        print(f"Error loading data.con for P={P}: {e}")
                 
                 # Verificar estado
                 status_file = f"{sim['dir']}/status.txt"
@@ -222,35 +236,72 @@ class RealtimeNBodyVisualizer:
             time.sleep(0.05)  # Check every 50ms
     
     def load_snapshot(self, filename):
-        """Cargar datos de un snapshot"""
+        """Cargar datos de un snapshot con verificación de escritura completa"""
         try:
-            with open(filename, 'r') as f:
-                lines = f.readlines()
+            # Check if file is still being written by checking size stability
+            initial_size = os.path.getsize(filename)
+            time.sleep(0.01)  # Small delay
+            final_size = os.path.getsize(filename)
+            
+            # If file size is still changing, skip this read
+            if initial_size != final_size or final_size == 0:
+                return None
+            
+            # Try to open with retry mechanism
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    with open(filename, 'r') as f:
+                        lines = f.readlines()
+                    break
+                except (IOError, OSError):
+                    if attempt < max_retries - 1:
+                        time.sleep(0.01)
+                        continue
+                    else:
+                        return None
             
             if len(lines) < 4:
                 return None
             
             # Parse header
-            n_particles = int(lines[1].strip())
-            sim_time = float(lines[2].strip())
+            try:
+                n_particles = int(lines[1].strip())
+                sim_time = float(lines[2].strip())
+            except (ValueError, IndexError):
+                return None
+            
+            # Verify we have enough lines for all particles
+            expected_lines = 3 + n_particles
+            if len(lines) < expected_lines:
+                return None
             
             # Load positions
             positions = []
             masses = []
             
-            for i in range(3, min(3 + n_particles, len(lines))):
+            for i in range(3, 3 + n_particles):
+                if i >= len(lines):
+                    break
                 parts = lines[i].split()
                 if len(parts) >= 8:
-                    masses.append(float(parts[1]))
-                    positions.append([float(parts[2]), float(parts[3]), float(parts[4])])
+                    try:
+                        masses.append(float(parts[1]))
+                        positions.append([float(parts[2]), float(parts[3]), float(parts[4])])
+                    except (ValueError, IndexError):
+                        continue
             
-            if positions:
+            # Only return if we got all expected particles
+            if len(positions) == n_particles and positions:
                 return {
                     'positions': np.array(positions),
                     'masses': np.array(masses),
                     'n_particles': len(positions),
                     'time': sim_time
                 }
+            else:
+                return None
+                
         except Exception as e:
             print(f"Error parsing snapshot {filename}: {e}")
             return None
