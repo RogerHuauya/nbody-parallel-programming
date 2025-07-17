@@ -199,10 +199,7 @@ class RealtimeController:
                                     print(f"      GFlops: {gflops}")
                                     break
         
-        # Preguntar si mostrar comparación final
-        response = input("\n¿Mostrar comparación final? (s/n): ")
-        if response.lower() == 's':
-            subprocess.run([sys.executable, 'realtime_visualizer.py', '--final'])
+
     
     def run(self):
         """Ejecutar el sistema completo"""

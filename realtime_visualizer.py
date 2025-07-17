@@ -511,13 +511,6 @@ class RealtimeNBodyVisualizer:
         monitor_thread.join(timeout=1)
 
 def main():
-    import sys
-    
-    # Check for final comparison mode
-    if len(sys.argv) > 1 and sys.argv[1] == '--final':
-        print("Final comparison mode - Feature coming soon!")
-        return
-    
     # Create and run visualizer
     visualizer = RealtimeNBodyVisualizer()
     visualizer.run()

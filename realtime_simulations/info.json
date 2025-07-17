@@ -1,7 +1,7 @@
 {
-    "n_particles": 4096,
+    "n_particles": 1024,
     "processors": [1, 2, 4, 8],
-    "directories": ["P1_N4KB", "P2_N4KB", "P4_N4KB", "P8_N4KB"],
+    "directories": ["P1_N1KB", "P2_N1KB", "P4_N1KB", "P8_N1KB"],
     "status": "completed",
-    "start_time": "2025-07-17T10:24:29-05:00"
+    "start_time": "2025-07-17T10:42:17-05:00"
 }

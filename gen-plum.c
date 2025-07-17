@@ -23,7 +23,7 @@
 
 #define Pi 3.141592653589793238462643
 
-#define KB 100
+#define KB 200
 #define N_MAX 4 * 1024 * KB
 
 /*

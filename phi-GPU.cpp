@@ -128,14 +128,18 @@ static void outputsnap(FILE *out){
 }
 
 static void outputsnap(){
+	// Commented out numbered .dat files to reduce I/O overhead
+	// Only keep data.con for real-time visualization
+	/*
 	static char out_fname[256];
 	sprintf(out_fname,"%04d.dat",diskstep);
 	FILE *out = fopen(out_fname,"w");
 	assert(out);
 	outputsnap(out);
 	fclose(out);
+	*/
 
-	out = fopen("data.con","w");
+	FILE *out = fopen("data.con","w");
 	assert(out);
 	outputsnap(out);
 	fclose(out);
