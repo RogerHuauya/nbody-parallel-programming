@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-Visualizador 3D en tiempo real para simulaciones N-Body
-Monitorea archivos de snapshots y actualiza la visualización continuamente
+Enhanced 3D N-Body Visualization with Beautiful Graphics
+Real-time monitoring with advanced visual effects
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.patches as mpatches
+from matplotlib import cm
 import os
 import glob
 import time
@@ -16,51 +18,118 @@ from datetime import datetime
 import threading
 import queue
 from collections import deque
+import matplotlib.gridspec as gridspec
 
-# Configuración
+# Advanced style configuration
 plt.style.use('dark_background')
-plt.rcParams['figure.figsize'] = (15, 10)
+plt.rcParams['figure.figsize'] = (20, 12)
+plt.rcParams['figure.facecolor'] = '#0a0a0a'
+plt.rcParams['axes.facecolor'] = '#0a0a0a'
+plt.rcParams['axes.edgecolor'] = '#333333'
+plt.rcParams['axes.labelcolor'] = '#cccccc'
+plt.rcParams['xtick.color'] = '#666666'
+plt.rcParams['ytick.color'] = '#666666'
+plt.rcParams['grid.color'] = '#222222'
+plt.rcParams['grid.alpha'] = 0.3
+plt.rcParams['font.family'] = 'sans-serif'
+plt.rcParams['font.size'] = 10
 
 class RealtimeNBodyVisualizer:
-    def __init__(self, base_dir='realtime_simulations', update_interval=100):
+    def __init__(self, base_dir='realtime_simulations', update_interval=50):
         self.base_dir = base_dir
         self.update_interval = update_interval  # ms
         self.simulations = {}
         self.data_queue = queue.Queue()
         self.running = True
-        self.current_view = 0  # Qué simulación mostrar (0-3 para N=1,2,4,8)
+        self.current_view = 0
+        self.rotation_speed = 0.5
+        self.show_trails = True
+        self.trail_length = 10
+        self.particle_size_scale = 1.0
         
-        # Configuración de visualización
-        self.fig = plt.figure(figsize=(15, 10))
-        self.fig.suptitle('N-Body Realtime Visualization', fontsize=16, color='white')
-        
-        # Crear subplots 2x2 para las 4 simulaciones
+        # Create figure with GridSpec for better layout
+        self.fig = plt.figure(figsize=(16, 12))
+        self.fig.patch.set_facecolor('#0a0a0a')
+
+        # 3 rows, 2 columns → first row for controls, next two rows for 2×2 grid
+        gs = gridspec.GridSpec(4, 2, figure=self.fig,
+                               height_ratios=[0.06, 1, 1, 0.06],
+                               width_ratios=[1, 1],
+                               hspace=0.15, wspace=0.12)
+
+        # Title spans entire top
+        self.fig.text(0.5, 0.98, 'N-Body Parallel Computing Visualization',
+                      fontsize=22, fontweight='bold', ha='center',
+                      color='#ffffff', family='monospace')
+
+        # Create 2x2 subplots for simulations
         self.axes = []
         for i in range(4):
-            ax = self.fig.add_subplot(2, 2, i+1, projection='3d')
-            ax.set_facecolor('black')
-            ax.grid(True, alpha=0.2)
+            row = 1 + i // 2  # Rows 1 and 2 in GridSpec
+            col = i % 2
+            ax = self.fig.add_subplot(gs[row, col], projection='3d')
+            ax.set_facecolor('#000000')
+            ax.xaxis.pane.fill = False
+            ax.yaxis.pane.fill = False
+            ax.zaxis.pane.fill = False
+            ax.xaxis.pane.set_edgecolor('#1a1a1a')
+            ax.yaxis.pane.set_edgecolor('#1a1a1a')
+            ax.zaxis.pane.set_edgecolor('#1a1a1a')
+            ax.grid(True, alpha=0.1, linestyle='--')
+            ax.xaxis._axinfo['grid']['linewidth'] = 0.3
+            ax.yaxis._axinfo['grid']['linewidth'] = 0.3
+            ax.zaxis._axinfo['grid']['linewidth'] = 0.3
             self.axes.append(ax)
+
+        # Status bar along bottom row (row 3 spanning two columns)
+        self.status_text = self.fig.text(0.5, 0.015, '', fontsize=11,
+                                         ha='center', color='#aaaaaa',
+                                         family='monospace')
         
-        # Inicializar datos de simulación
+        # Initialize simulations
         self.processors = [1, 2, 4, 8]
         self.n_size = self.get_n_size()
         
+        # Color schemes for each processor count
+        self.color_schemes = {
+            1: {'cmap': 'hot', 'base': '#ff6b6b', 'glow': '#ff0000'},
+            2: {'cmap': 'cool', 'base': '#4ecdc4', 'glow': '#00ffff'},
+            4: {'cmap': 'spring', 'base': '#95e1d3', 'glow': '#00ff00'},
+            8: {'cmap': 'plasma', 'base': '#c56cf0', 'glow': '#ff00ff'}
+        }
+        
         for i, P in enumerate(self.processors):
+            # Attempt to read t_end from cfg
+            cfg_path = f"{self.base_dir}/P{P}_N{self.n_size}KB/phi-GPU4.cfg"
+            t_end_val = 100.0
+            if os.path.exists(cfg_path):
+                try:
+                    with open(cfg_path, 'r') as cf:
+                        tokens = cf.read().strip().split()
+                        if len(tokens) >= 2:
+                            t_end_val = float(tokens[1])
+                except:
+                    pass
+
             self.simulations[P] = {
-                'dir': f"{base_dir}/P{P}_N{self.n_size}KB",
+                'dir': f"{self.base_dir}/P{P}_N{self.n_size}KB",
                 'processors': P,
                 'particles': None,
                 'scatter': None,
                 'current_snapshot': -1,
-                'snapshots': deque(maxlen=10),  # Mantener últimos 10 snapshots
+                'snapshots': deque(maxlen=self.trail_length),
                 'status': 'waiting',
                 'ax': self.axes[i],
                 'start_time': None,
-                'processing_times': []
+                'processing_times': [],
+                'rotation_angle': 0,
+                'velocities': None,
+                'energies': None,
+                't_end': t_end_val,
+                'current_time': 0.0
             }
         
-        # Configurar controles
+        # Setup controls
         self.setup_controls()
         
     def get_n_size(self):
@@ -70,13 +139,42 @@ class RealtimeNBodyVisualizer:
                 info = json.load(f)
                 return info['n_particles'] // 1024
         except:
-            return 4  # Default 4KB = 4096 partículas
-        
+            return 1  # Default 1KB
+    
     def setup_controls(self):
         """Configurar controles interactivos"""
-        # Información de estado
-        self.status_text = self.fig.text(0.02, 0.98, '', fontsize=10, 
-                                        verticalalignment='top', color='green')
+        # Rotation speed control
+        ax_rotation = plt.axes([0.08, 0.92, 0.25, 0.025])
+        ax_rotation.set_facecolor('#1a1a1a')
+        from matplotlib.widgets import Slider
+        self.rotation_slider = Slider(ax_rotation, 'Rotation', 0, 2, 
+                                      valinit=self.rotation_speed, 
+                                      color='#4ecdc4')
+        self.rotation_slider.on_changed(self.update_rotation_speed)
+        
+        # Particle size control
+        ax_size = plt.axes([0.38, 0.92, 0.25, 0.025])
+        ax_size.set_facecolor('#1a1a1a')
+        self.size_slider = Slider(ax_size, 'Particle Size', 0.1, 3, 
+                                  valinit=self.particle_size_scale,
+                                  color='#95e1d3')
+        self.size_slider.on_changed(self.update_particle_size)
+        
+        # Trail toggle button
+        ax_trail = plt.axes([0.72, 0.92, 0.12, 0.025])
+        from matplotlib.widgets import Button
+        self.trail_button = Button(ax_trail, 'Toggle Trails', 
+                                  color='#3a3a3a', hovercolor='#5a5a5a')
+        self.trail_button.on_clicked(self.toggle_trails)
+    
+    def update_rotation_speed(self, val):
+        self.rotation_speed = val
+    
+    def update_particle_size(self, val):
+        self.particle_size_scale = val
+    
+    def toggle_trails(self, event):
+        self.show_trails = not self.show_trails
         
     def monitor_files(self):
         """Thread para monitorear archivos nuevos"""
@@ -87,6 +185,8 @@ class RealtimeNBodyVisualizer:
                 if os.path.exists(snapshot_dir):
                     # Buscar nuevos snapshots
                     snapshots = sorted(glob.glob(f"{snapshot_dir}/snapshot_*.dat"))
+                    # Remove empty files that can appear when snapshot is being written
+                    snapshots = [s for s in snapshots if os.path.getsize(s) > 0]
                     
                     if snapshots and len(snapshots) > sim['current_snapshot'] + 1:
                         # Cargar el siguiente snapshot
@@ -98,6 +198,14 @@ class RealtimeNBodyVisualizer:
                                 load_time = time.time() - start_load
                                 
                                 if data is not None:
+                                    # Calculate velocities and energies for visualization
+                                    if sim['particles'] is not None:
+                                        old_pos = sim['particles']['positions']
+                                        new_pos = data['positions']
+                                        data['velocities'] = np.linalg.norm(new_pos - old_pos, axis=1)
+                                    else:
+                                        data['velocities'] = np.zeros(data['n_particles'])
+                                    
                                     self.data_queue.put((P, data, next_idx, load_time))
                                     sim['status'] = 'running'
                                     if sim['start_time'] is None:
@@ -111,7 +219,7 @@ class RealtimeNBodyVisualizer:
                     with open(status_file, 'r') as f:
                         sim['status'] = f.read().strip()
             
-            time.sleep(0.05)  # Chequear cada 50ms
+            time.sleep(0.05)  # Check every 50ms
     
     def load_snapshot(self, filename):
         """Cargar datos de un snapshot"""
@@ -122,10 +230,11 @@ class RealtimeNBodyVisualizer:
             if len(lines) < 4:
                 return None
             
-            # Parsear encabezado
+            # Parse header
             n_particles = int(lines[1].strip())
+            sim_time = float(lines[2].strip())
             
-            # Cargar posiciones
+            # Load positions
             positions = []
             masses = []
             
@@ -139,15 +248,16 @@ class RealtimeNBodyVisualizer:
                 return {
                     'positions': np.array(positions),
                     'masses': np.array(masses),
-                    'n_particles': len(positions)
+                    'n_particles': len(positions),
+                    'time': sim_time
                 }
         except Exception as e:
             print(f"Error parsing snapshot {filename}: {e}")
             return None
     
     def update_visualization(self, frame):
-        """Actualizar la visualización"""
-        # Procesar datos de la cola
+        """Update visualization with enhanced graphics"""
+        # Process queue data
         updated = False
         while not self.data_queue.empty():
             try:
@@ -157,223 +267,209 @@ class RealtimeNBodyVisualizer:
                 sim['current_snapshot'] = snapshot_idx
                 sim['snapshots'].append(data)
                 sim['processing_times'].append(load_time)
+                sim['velocities'] = data.get('velocities', np.zeros(data['n_particles']))
+                sim['current_time'] = data.get('time', sim['current_time'])
                 updated = True
             except queue.Empty:
                 break
         
-        # Actualizar cada subplot
+        # Update each subplot
         for i, P in enumerate(self.processors):
             sim = self.simulations[P]
             ax = sim['ax']
+            
+            # Update rotation
+            sim['rotation_angle'] += self.rotation_speed
             
             if sim['particles'] is not None:
                 data = sim['particles']
                 positions = data['positions']
                 masses = data['masses']
+                velocities = sim['velocities']
                 
-                # Limpiar y redibujar
+                # Clear and redraw
                 ax.clear()
                 
-                # Configurar límites
-                max_range = np.max(np.abs(positions)) * 1.1
+                # Configure limits
+                max_range = np.max(np.abs(positions)) * 1.2
                 ax.set_xlim(-max_range, max_range)
                 ax.set_ylim(-max_range, max_range)
                 ax.set_zlim(-max_range/2, max_range/2)
                 
-                # Dibujar partículas
-                # Color basado en procesadores para diferenciar
-                color_map = {1: 'Reds', 2: 'Blues', 4: 'Greens', 8: 'Purples'}
+                # Calculate particle properties for visualization
+                # Normalize masses for size
+                mass_norm = (masses - masses.min()) / (masses.max() - masses.min() + 1e-10)
+                sizes = (50 + 200 * mass_norm) * self.particle_size_scale
+                
+                # Color based on velocity magnitude
+                vel_norm = velocities / (velocities.max() + 1e-10)
+                
+                # Get color scheme
+                scheme = self.color_schemes[P]
+                
+                # Main particle scatter with glow effect
+                # Inner bright core
                 scatter = ax.scatter(positions[:, 0], 
                                    positions[:, 1], 
                                    positions[:, 2],
-                                   c=masses, 
-                                   cmap=color_map.get(P, 'plasma'),
-                                   s=20*masses/masses.max() + 5,
-                                   alpha=0.8,
-                                   edgecolors='white',
-                                   linewidth=0.5)
+                                   c=vel_norm, 
+                                   cmap=scheme['cmap'],
+                                   s=sizes * 0.5,
+                                   alpha=1.0,
+                                   edgecolors='none',
+                                   vmin=0, vmax=1)
                 
-                # Dibujar trayectorias (últimos puntos)
-                if len(sim['snapshots']) > 1:
-                    # Seleccionar algunas partículas para trayectorias
-                    n_tracks = min(5, data['n_particles'])
+                # Outer glow
+                ax.scatter(positions[:, 0], 
+                          positions[:, 1], 
+                          positions[:, 2],
+                          c=vel_norm, 
+                          cmap=scheme['cmap'],
+                          s=sizes * 2,
+                          alpha=0.2,
+                          edgecolors='none',
+                          vmin=0, vmax=1)
+                
+                # Draw enhanced trails
+                if self.show_trails and len(sim['snapshots']) > 1:
+                    # Select particles for trails (more for visual effect)
+                    n_tracks = min(10, data['n_particles'])
                     track_ids = np.linspace(0, data['n_particles']-1, n_tracks, dtype=int)
                     
                     for tid in track_ids:
                         trajectory = []
-                        for snap in list(sim['snapshots'])[-5:]:  # Últimos 5 snapshots
+                        for snap in list(sim['snapshots']):
                             if tid < len(snap['positions']):
                                 trajectory.append(snap['positions'][tid])
                         
                         if len(trajectory) > 1:
                             trajectory = np.array(trajectory)
-                            ax.plot(trajectory[:, 0], 
-                                   trajectory[:, 1], 
-                                   trajectory[:, 2],
-                                   'w-', alpha=0.3, linewidth=1)
+                            # Gradient trail with fading
+                            for j in range(len(trajectory)-1):
+                                alpha = (j+1) / len(trajectory) * 0.5
+                                ax.plot(trajectory[j:j+2, 0], 
+                                       trajectory[j:j+2, 1], 
+                                       trajectory[j:j+2, 2],
+                                       color=scheme['base'], 
+                                       alpha=alpha, 
+                                       linewidth=1.5)
                 
-                # Configurar etiquetas
-                ax.set_xlabel('X', fontsize=8)
-                ax.set_ylabel('Y', fontsize=8)
-                ax.set_zlabel('Z', fontsize=8)
+                # Draw progress bar of simulation time using 2D inset axis (avoids 3D projection issues)
+                progress = min(max(sim['current_time'] / sim['t_end'], 0.0), 1.0)
+                if 'progress_ax' not in sim or sim['progress_ax'] is None:
+                    # Create once
+                    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+                    sim['progress_ax'] = inset_axes(ax, width="90%", height="6%", 
+                                                    loc='lower left', borderpad=2)
+                    sim['progress_ax'].set_facecolor('none')
+                    sim['progress_ax'].set_xticks([])
+                    sim['progress_ax'].set_yticks([])
+                    sim['progress_ax'].set_xlim(0, 1)
+                    sim['progress_ax'].set_ylim(0, 1)
+                p_ax = sim['progress_ax']
+                p_ax.clear()
+                p_ax.barh(0.5, 1.0, height=1.0, color='#333333', alpha=0.6)
+                p_ax.barh(0.5, progress, height=1.0, color=scheme['base'], alpha=0.9)
+                p_ax.set_xticks([])
+                p_ax.set_yticks([])
+                p_ax.text(0.5, 0.5, f"t = {sim['current_time']:.1f}/{sim['t_end']}",
+                           ha='center', va='center', fontsize=7, color='#dddddd')
                 
-                # Calcular métricas de rendimiento
+                # Style the axes
+                ax.set_xlabel('X', fontsize=9, color='#888888')
+                ax.set_ylabel('Y', fontsize=9, color='#888888')
+                ax.set_zlabel('Z', fontsize=9, color='#888888')
+                ax.tick_params(colors='#666666', labelsize=8)
+                
+                # Performance metrics
                 if sim['processing_times']:
-                    avg_time = np.mean(sim['processing_times'][-10:])  # Últimos 10
+                    avg_time = np.mean(sim['processing_times'][-10:])
                     fps = 1.0 / avg_time if avg_time > 0 else 0
-                    speedup = sim['processing_times'][0] / avg_time if len(sim['processing_times']) > 0 else 1
+                    speedup = self.simulations[1]['processing_times'][-1] / avg_time if P > 1 and self.simulations[1]['processing_times'] else P
                 else:
                     fps = 0
                     speedup = 1
                 
-                ax.set_title(f'P = {P} procesadores | N = {self.n_size*1024} partículas\n' +
-                           f'Snapshot: {sim["current_snapshot"]} | FPS: {fps:.1f} | ' +
-                           f'Speedup: {speedup:.2f}x', 
-                           fontsize=10)
+                # Enhanced title with metrics
+                title = f'P = {P} {"processor" if P == 1 else "processors"}\n'
+                title += f'Snapshot: {sim["current_snapshot"]:04d} | '
+                title += f'FPS: {fps:.1f} | '
+                title += f'Speedup: {speedup:.1f}x'
                 
-                # Vista fija sin rotación
-                ax.view_init(elev=30, azim=45)
+                ax.text2D(0.5, 0.95, title, transform=ax.transAxes,
+                         fontsize=11, ha='center', va='top',
+                         color=scheme['base'], weight='bold',
+                         bbox=dict(boxstyle='round,pad=0.3', 
+                                  facecolor='#1a1a1a', 
+                                  edgecolor=scheme['base'],
+                                  alpha=0.8))
+                
+                # Set viewing angle with rotation
+                ax.view_init(elev=20, azim=sim['rotation_angle'])
+                
+                # Remove axis lines for cleaner look
+                ax.xaxis.line.set_visible(False)
+                ax.yaxis.line.set_visible(False)
+                ax.zaxis.line.set_visible(False)
             else:
-                ax.set_title(f'P = {P} procesadores | N = {self.n_size*1024} partículas\nEsperando datos...', fontsize=10)
+                # Waiting state
+                ax.text2D(0.5, 0.5, f'Waiting for data...\nP = {P}', 
+                         transform=ax.transAxes,
+                         fontsize=14, ha='center', va='center',
+                         color='#666666', style='italic')
                 ax.set_xlim(-1, 1)
                 ax.set_ylim(-1, 1)
                 ax.set_zlim(-1, 1)
+                ax.set_xticks([])
+                ax.set_yticks([])
+                ax.set_zticks([])
         
-        # Actualizar información de estado
-        status_info = f"Realtime N-Body Visualization | N = {self.n_size*1024} partículas (constante) | Time: {datetime.now().strftime('%H:%M:%S')}\n"
-        status_info += "Rendimiento: "
+        # Update status bar
+        status = f"Time: {datetime.now().strftime('%H:%M:%S')} | "
+        status += f"Particles: {self.n_size*1024} | "
+        status += "Status: "
         for P in self.processors:
             sim = self.simulations[P]
-            if sim['processing_times']:
-                avg_time = np.mean(sim['processing_times'][-10:])
-                status_info += f"P{P}: {1/avg_time:.1f} FPS | "
-            else:
-                status_info += f"P{P}: -- FPS | "
-        self.status_text.set_text(status_info)
+            status += f"P{P}:{sim['status'][:3].upper()} "
+        
+        self.status_text.set_text(status)
         
         return self.axes
     
-    def start(self):
-        """Iniciar visualización en tiempo real"""
-        print("=== VISUALIZADOR N-BODY EN TIEMPO REAL ===")
-        print(f"Monitoreando: {self.base_dir}")
-        print("Controles:")
-        print("  - Cerrar ventana: Detener visualización")
-        print("")
+    def run(self):
+        """Execute the visualization system"""
+        print("=== Enhanced N-Body Real-time Visualization ===")
+        print(f"Monitoring: {self.base_dir}")
+        print(f"Particles: {self.n_size*1024}")
+        print("Starting monitoring thread...")
         
-        # Iniciar thread de monitoreo
-        monitor_thread = threading.Thread(target=self.monitor_files, daemon=True)
+        # Start monitoring thread
+        monitor_thread = threading.Thread(target=self.monitor_files)
+        monitor_thread.daemon = True
         monitor_thread.start()
         
-        # Crear animación
-        self.anim = FuncAnimation(self.fig, self.update_visualization, 
-                                 interval=self.update_interval, 
+        # Create animation
+        self.anim = FuncAnimation(self.fig, self.update_visualization,
+                                 interval=self.update_interval,
                                  blit=False, cache_frame_data=False)
         
-        # Configurar cierre limpio
-        def on_close(event):
-            self.running = False
-            print("\nDeteniendo visualización...")
-        
-        self.fig.canvas.mpl_connect('close_event', on_close)
-        
-        # Mostrar
-        plt.tight_layout()
         plt.show()
         
-        # Limpieza
+        # Cleanup
         self.running = False
         monitor_thread.join(timeout=1)
-        print("Visualización detenida.")
-
-def plot_final_comparison():
-    """Generar comparación final de todas las simulaciones"""
-    base_dir = 'realtime_simulations'
-    processors = [1, 2, 4, 8]
-    
-    # Obtener N del archivo info
-    try:
-        with open(f"{base_dir}/info.json", 'r') as f:
-            info = json.load(f)
-            n_particles = info['n_particles']
-            n_size = n_particles // 1024
-    except:
-        n_size = 4
-        n_particles = 4096
-    
-    fig = plt.figure(figsize=(16, 12))
-    fig.suptitle(f'Comparación de Rendimiento - N = {n_particles} partículas', fontsize=16)
-    
-    for i, P in enumerate(processors):
-        ax = fig.add_subplot(2, 2, i+1, projection='3d')
-        
-        # Buscar snapshot final
-        final_snapshot = f"{base_dir}/P{P}_N{n_size}KB/snapshots/snapshot_final.dat"
-        if not os.path.exists(final_snapshot):
-            snapshots = sorted(glob.glob(f"{base_dir}/P{P}_N{n_size}KB/snapshots/snapshot_*.dat"))
-            if snapshots:
-                final_snapshot = snapshots[-1]
-        
-        if os.path.exists(final_snapshot):
-            # Cargar datos
-            visualizer = RealtimeNBodyVisualizer()
-            data = visualizer.load_snapshot(final_snapshot)
-            
-            if data:
-                positions = data['positions']
-                masses = data['masses']
-                
-                # Configurar límites
-                max_range = np.max(np.abs(positions)) * 1.1
-                ax.set_xlim(-max_range, max_range)
-                ax.set_ylim(-max_range, max_range)
-                ax.set_zlim(-max_range/2, max_range/2)
-                
-                # Dibujar
-                scatter = ax.scatter(positions[:, 0], 
-                                   positions[:, 1], 
-                                   positions[:, 2],
-                                   c=masses, 
-                                   cmap='viridis',
-                                   s=30*masses/masses.max() + 10,
-                                   alpha=0.8)
-                
-                ax.set_xlabel('X')
-                ax.set_ylabel('Y')
-                ax.set_zlabel('Z')
-                ax.set_title(f'P = {P} procesadores - Estado Final')
-                ax.view_init(elev=30, azim=45)
-                
-                # Añadir información de rendimiento
-                output_file = f"{base_dir}/P{P}_N{n_size}KB/output.log"
-                if os.path.exists(output_file):
-                    with open(output_file, 'r') as f:
-                        content = f.read()
-                        if 'Real Speed' in content:
-                            for line in content.split('\n'):
-                                if 'Real Speed' in line:
-                                    gflops = line.split()[3]
-                                    ax.text2D(0.05, 0.95, f'GFlops: {gflops}', 
-                                            transform=ax.transAxes, fontsize=10)
-                                    break
-        else:
-            ax.set_title(f'P = {P} procesadores - Sin datos')
-    
-    plt.tight_layout()
-    plt.savefig(f'{base_dir}/final_comparison.png', dpi=300)
-    plt.show()
 
 def main():
-    """Función principal"""
     import sys
     
+    # Check for final comparison mode
     if len(sys.argv) > 1 and sys.argv[1] == '--final':
-        # Mostrar comparación final
-        plot_final_comparison()
-    else:
-        # Iniciar visualización en tiempo real
-        visualizer = RealtimeNBodyVisualizer()
-        visualizer.start()
+        print("Final comparison mode - Feature coming soon!")
+        return
+    
+    # Create and run visualizer
+    visualizer = RealtimeNBodyVisualizer()
+    visualizer.run()
 
 if __name__ == "__main__":
     main() 

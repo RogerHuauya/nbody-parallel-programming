@@ -9,11 +9,24 @@ import os
 import time
 import psutil
 import signal
+import json
 
 class RealtimeController:
     def __init__(self):
         self.simulation_process = None
         self.visualizer_process = None
+
+    def clean_simulation(self):
+        """Limpiar la simulación"""
+        print("Limpiando simulación...")
+        subprocess.run(['rm', '-rf', 'realtime_simulations'])
+
+    def compile_code(self):
+        """Compilar el código"""
+        print("Compilando código...")
+        subprocess.run(['make', 'clean'], check=True)
+        subprocess.run(['make', 'cpu-4th'], check=True)
+        subprocess.run(['make', 'gen-plum'], check=True)
         
     def check_dependencies(self):
         """Verificar que todas las dependencias estén instaladas"""
@@ -191,6 +204,10 @@ class RealtimeController:
     def run(self):
         """Ejecutar el sistema completo"""
         print("=== SISTEMA DE VISUALIZACIÓN N-BODY EN TIEMPO REAL ===\n")
+
+        self.compile_code()
+        
+        self.clean_simulation()
         
         if not self.check_dependencies():
             return

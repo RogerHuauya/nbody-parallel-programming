@@ -30,17 +30,17 @@ clean:
 	rm -rf $(BIN_DIR)
 
 # Data generation executable
-gen-plum: gen-plum.c
-	gcc -O3 -Wall -o $(BIN_DIR)/gen-plum $< -lm
+gen-plum: $(BIN_DIR) gen-plum.c
+	gcc -O3 -Wall -o $(BIN_DIR)/gen-plum gen-plum.c -lm
 
 # GPU executables
-gpu-8th: phi-GPU.cpp hermite8-gpu.o
+gpu-8th: $(BIN_DIR) phi-GPU.cpp hermite8-gpu.o
 	mpicxx $(CXXFLAGS) -DEIGHTH -DGPU -I$(CUDA_PATH)/include -L$(CUDA_PATH)/lib64 -lcudart -o $(BIN_DIR)/$@ $^
 
-gpu-6th: phi-GPU.cpp hermite6-gpu.o
+gpu-6th: $(BIN_DIR) phi-GPU.cpp hermite6-gpu.o
 	mpicxx $(CXXFLAGS) -DSIXTH -DGPU -I$(CUDA_PATH)/include -L$(CUDA_PATH)/lib64 -lcudart -o $(BIN_DIR)/$@ $^
 
-gpu-4th: phi-GPU.cpp hermite4-gpu.o
+gpu-4th: $(BIN_DIR) phi-GPU.cpp hermite4-gpu.o
 	mpicxx $(CXXFLAGS) -DFOURTH -DGPU -I$(CUDA_PATH)/include -L$(CUDA_PATH)/lib64 -L/usr/lib/x86_64-linux-gnu -lcudart -lcuda -o $(BIN_DIR)/$@ $^
 
 # Assembly files
@@ -74,14 +74,14 @@ hermite4-gpu.cubin: hermite4-gpu.cu
 	nvcc -I $(SDK_PATH)/common/inc -Xcompiler "-O3" -cubin $<
 
 # CPU executables
-cpu-8th: phi-GPU.cpp hermite8.h
-	mpicxx $(CXXFLAGS) -DEIGHTH  -o $(BIN_DIR)/$@ $<
+cpu-8th: $(BIN_DIR) phi-GPU.cpp hermite8.h
+	mpicxx $(CXXFLAGS) -DEIGHTH  -o $(BIN_DIR)/$@ phi-GPU.cpp
 
-cpu-6th: phi-GPU.cpp hermite6.h
-	mpicxx $(CXXFLAGS) -DSIXTH  -o $(BIN_DIR)/$@ $<
+cpu-6th: $(BIN_DIR) phi-GPU.cpp hermite6.h
+	mpicxx $(CXXFLAGS) -DSIXTH  -o $(BIN_DIR)/$@ phi-GPU.cpp
 
-cpu-4th: phi-GPU.cpp hermite4.h
-	mpicxx $(CXXFLAGS) -DFOURTH -o $(BIN_DIR)/$@ $<
+cpu-4th: $(BIN_DIR) phi-GPU.cpp hermite4.h
+	mpicxx $(CXXFLAGS) -DFOURTH -o $(BIN_DIR)/$@ phi-GPU.cpp
 
 # Install target to make executables available in PATH
 install: all
